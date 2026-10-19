@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/elibrary?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+  flyway:
+    enabled: true
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+elibrary:
+  jwt:
+    # 仅为本地默认值，生产经环境变量注入
+    secret: ${JWT_SECRET:ZXRoaWJyYXJ5LWRldi1vbmx5LXNlY3JldC1rZXktMzIteWJ5dGVzLWxvbmc=}
+    expire-hours: 24
+
+logging:
+  level:
+    com.elibrary: INFO
