@@ -48,6 +48,25 @@ curl -s -X POST localhost:8080/api/loans -H "Authorization: Bearer <token>" \
 # → 201 Created，Location: /api/loans/{id}
 ```
 
+## 日志与问题排查
+
+**每请求一个 traceId**：所有响应带 `X-Trace-Id` 头，同一 id 出现在该请求全部日志行中（MDC 注入）。用户报障时拿到响应头里的 id，一条命令定位全链路：
+
+```bash
+grep c02b2f41 app.log
+# 2026-10-20T01:39:50 INFO [c02b2f41] c.e.l.LoanService : 借阅成功: loanId=46, userId=1, bookId=1, dueAt=...
+```
+
+日志分级约定：
+
+| 级别 | 内容 | 排查场景 |
+|---|---|---|
+| INFO | 正向动作审计：登录成功、借阅成功（含 loanId/dueAt）、归还成功、乐观锁冲突重试 | 追业务结果；重试高频出现 = 热点书信号 |
+| WARN | 业务拒绝（集中一处，带 errorCode）、唯一索引兜底命中、重复归还被状态机拦截、登录失败 | 409/404 是正常分支不打 ERROR（防告警疲劳）；**兜底命中 = 应用检查被并发穿透**，竞态排查第一手证据 |
+| ERROR | 仅未预期异常（500 路径，带完整堆栈） | 出现即真故障 |
+
+敏感信息纪律：日志不含 token 值与密码；登录失败日志在服务端区分"用户不存在/密码错误"（排查用），响应体不区分（防用户名枚举）。
+
 ## API 与错误契约
 
 错误响应统一 RFC 7807 `application/problem+json`，扩展 `errorCode` 字段；body 校验失败附 `fields` 字段明细。

@@ -34,6 +34,7 @@ JWT 无状态认证（jjwt HS256，种子用户 + login，不做注册）。测�
 - 认证用 Spring Security + JWT，无状态；GET /loans 的当前用户从 JWT 解出。
 - 非本人 loan 返回 404（防越权探测）；重复归还 409。
 - 错误响应统一 RFC 7807 problem+json + 业务 errorCode；404/409/400 映射集中一处。
+- 日志纪律：TraceIdFilter（最高优先级）每请求注入 MDC traceId + `X-Trace-Id` 响应头，pattern 用 Logback `%X{traceId:-}`（不是 Spring 占位符）；正向动作 INFO（登录/借阅/归还成功），业务拒绝 WARN 集中在 GlobalExceptionHandler，**并发事件单独点名**——唯一索引兜底命中 WARN（应用检查被穿透）、乐观锁重试 INFO、重复归还被拦截 WARN；ERROR 只留给未预期异常；不打 token/密码；MDC 在 finally 清理。
 - 测试：领域 JUnit + Service Mockito + @WebMvcTest + Testcontainers 集成（四竞态场景）；每个领域异常路径至少一个测试。
 - 刻意不引入 Redis/Kafka/gRPC；Idempotency-Key 不做；限额/借期保持固定值（类别化配置只进 README 演进节）。
 
