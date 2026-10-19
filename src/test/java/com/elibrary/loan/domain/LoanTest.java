@@ -16,14 +16,14 @@ class LoanTest {
     private final LocalDateTime now = LocalDateTime.of(2026, 1, 1, 10, 0);
 
     @Test
-    void 借期固定14天() {
+    void borrowSetsDueAtFourteenDaysLater() {
         Loan loan = Loan.borrow(1L, 2L, now);
         assertThat(loan.getDueAt()).isEqualTo(now.plusDays(14));
         assertThat(loan.getBorrowedAt()).isEqualTo(now);
     }
 
     @Test
-    void 未归还即在借() {
+    void activeLoanOverdueOnlyAfterDueDate() {
         Loan loan = Loan.borrow(1L, 2L, now);
         assertThat(loan.isActive()).isTrue();
         assertThat(loan.isOverdue(now.plusDays(13))).isFalse();
@@ -31,7 +31,7 @@ class LoanTest {
     }
 
     @Test
-    void 归还后不再在借也不逾期() {
+    void returnedLoanIsInactiveAndNotOverdue() {
         Loan loan = Loan.borrow(1L, 2L, now);
         loan.markReturned(now.plusDays(3));
         assertThat(loan.isActive()).isFalse();
@@ -39,7 +39,7 @@ class LoanTest {
     }
 
     @Test
-    void 重复归还抛领域异常() {
+    void markReturnedTwiceThrowsAlreadyReturned() {
         Loan loan = Loan.borrow(1L, 2L, now);
         loan.markReturned(now.plusDays(3));
         assertThatThrownBy(() -> loan.markReturned(now.plusDays(4)))

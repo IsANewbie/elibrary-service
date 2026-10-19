@@ -24,14 +24,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DomainExceptionTest {
 
     @Test
-    void 异常携带稳定errorCode() {
+    void carriesStableErrorCode() {
         var ex = new LoanNotFoundForTest("loan 不存在");
         assertThat(ex.getCode()).isEqualTo(ErrorCode.LOAN_NOT_FOUND);
         assertThat(ex.getMessage()).isEqualTo("loan 不存在");
     }
 
     @Test
-    void cause链构造器保留根因() {
+    void causeConstructorPreservesRootCause() {
         var root = new IllegalStateException("uq_loans_user_active_book");
         var ex = new CauseForTest("重复借阅", root);
         assertThat(ex.getCause()).isSameAs(root);
@@ -40,7 +40,7 @@ class DomainExceptionTest {
     // 构造器绑定哪个 code 编译器不查，贴错则 HTTP 状态与 errorCode 双错，全覆盖兜底
     @ParameterizedTest
     @MethodSource("subclassBindings")
-    void 子类绑定正确的ErrorCode(DomainException ex, ErrorCode expected) {
+    void subclassesBindCorrectErrorCode(DomainException ex, ErrorCode expected) {
         assertThat(ex.getCode()).isEqualTo(expected);
     }
 

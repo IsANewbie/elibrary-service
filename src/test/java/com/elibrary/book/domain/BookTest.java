@@ -13,27 +13,27 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class BookTest {
 
     @Test
-    void 借阅扣减一个名额() {
+    void borrowDecrementsAvailableLicenses() {
         Book book = book(3);
         book.borrow();
         assertThat(book.getAvailableLicenses()).isEqualTo(2);
     }
 
     @Test
-    void 名额为零时借阅抛NoLicense() {
+    void borrowThrowsNoLicenseWhenLicensesExhausted() {
         Book book = book(0);
         assertThatThrownBy(book::borrow).isInstanceOf(NoLicenseException.class);
     }
 
     @Test
-    void 归还释放一个名额() {
+    void releaseIncrementsAvailableLicenses() {
         Book book = book(3, 1);
         book.release();
         assertThat(book.getAvailableLicenses()).isEqualTo(2);
     }
 
     @Test
-    void 名额已满时释放是程序错误() {
+    void releaseThrowsIllegalStateWhenAlreadyFull() {
         // 双放名额是调用方 bug（loan 状态机已挡），不是业务分支，故用 IllegalStateException 而非领域异常
         Book book = book(3, 3);
         assertThatThrownBy(book::release).isInstanceOf(IllegalStateException.class);
