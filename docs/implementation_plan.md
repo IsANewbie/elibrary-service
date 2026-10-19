@@ -90,6 +90,8 @@ git commit -m "docs: 需求分析与设计推演 v2"
     <java.version>21</java.version>
     <mybatis-plus.version>3.5.12</mybatis-plus.version>
     <jjwt.version>0.12.6</jjwt.version>
+    <!-- Boot 3.5.5 默认 11.7.2 对 MySQL 8.4 只警告不拦；11.13.3 起官方支持 8.4（verified 名单滞后，残留信息级警告属正常） -->
+    <flyway.version>11.13.3</flyway.version>
   </properties>
   <dependencies>
     <dependency>
@@ -161,18 +163,8 @@ git commit -m "docs: 需求分析与设计推演 v2"
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-testcontainers</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>mysql</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>junit-jupiter</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -867,7 +859,9 @@ public class MybatisPlusConfig {
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
+        PaginationInnerInterceptor pagination = new PaginationInnerInterceptor(DbType.MYSQL);
+        pagination.setMaxLimit(100L); // 与 API 的 size 上限一致，纵深防御
+        interceptor.addInnerInterceptor(pagination);
         interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
         return interceptor;
     }
@@ -906,6 +900,7 @@ import org.apache.ibatis.annotations.Select;
 
 public interface UserMapper extends BaseMapper<User> {
 
+    /** 必须在写事务内调用：autocommit 下 FOR UPDATE 的锁随语句结束即释放，静默无效 */
     // 锁显式写在 SQL：借阅链路的第一步，语义一目了然
     @Select("SELECT * FROM users WHERE id = #{id} FOR UPDATE")
     User selectByIdForUpdate(@Param("id") Long id);
@@ -922,9 +917,9 @@ import org.apache.ibatis.annotations.Select;
 
 public interface BookMapper extends BaseMapper<Book> {
 
-    // 读侧跨表投影（声明的拆分债）：详情页 borrowedByYou
+    // 读侧跨表投影（声明的拆分债）：详情页 borrowedByYou；参数顺序与 LoanMapper 同构（userId 在前）
     @Select("SELECT EXISTS(SELECT 1 FROM loans WHERE book_id = #{bookId} AND user_id = #{userId} AND returned_at IS NULL)")
-    boolean existsActiveBorrow(@Param("bookId") Long bookId, @Param("userId") Long userId);
+    boolean existsActiveBorrow(@Param("userId") Long userId, @Param("bookId") Long bookId);
 }
 ```
 
@@ -949,7 +944,7 @@ public interface LoanMapper extends BaseMapper<Loan> {
             SELECT l.id, l.book_id, b.title, b.author, l.borrowed_at, l.due_at, l.returned_at
             FROM loans l JOIN books b ON l.book_id = b.id
             WHERE l.user_id = #{userId} AND l.returned_at IS NULL
-            ORDER BY l.borrowed_at DESC
+            ORDER BY l.borrowed_at DESC, l.id DESC
             """)
     java.util.List<LoanWithBookView> selectActiveWithBook(@Param("userId") Long userId);
 }
@@ -981,18 +976,43 @@ public class LoanWithBookView {
 package com.elibrary;
 
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
+/**
+ * 集成测试基座：设了 IT_DB_URL 走外部 MySQL（无 Docker 环境用），否则 Testcontainers 起临时容器。
+ * 两条路径跑同一套 Flyway 迁移，schema 断言不分叉。
+ */
 @SpringBootTest
-@Testcontainers
 public abstract class AbstractIT {
 
-    @Container
-    @ServiceConnection
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4");
+    private static final String EXTERNAL_URL = System.getenv("IT_DB_URL");
+
+    private static final MySQLContainer<?> MYSQL =
+            EXTERNAL_URL == null ? new MySQLContainer<>("mysql:8.4") : null;
+
+    static {
+        if (EXTERNAL_URL == null) {
+            MYSQL.start(); // 手动启动：外部库路径不触发容器生命周期
+        } else if (System.getenv("IT_DB_USER") == null || System.getenv("IT_DB_PASSWORD") == null) {
+            // 连接失败发生在数秒后且信息难懂，启动即 fail-fast
+            throw new IllegalStateException("设了 IT_DB_URL 就必须同时设 IT_DB_USER/IT_DB_PASSWORD");
+        }
+    }
+
+    @DynamicPropertySource
+    static void datasource(DynamicPropertyRegistry registry) {
+        if (EXTERNAL_URL == null) {
+            registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
+            registry.add("spring.datasource.username", MYSQL::getUsername);
+            registry.add("spring.datasource.password", MYSQL::getPassword);
+        } else {
+            registry.add("spring.datasource.url", () -> EXTERNAL_URL);
+            registry.add("spring.datasource.username", () -> System.getenv("IT_DB_USER"));
+            registry.add("spring.datasource.password", () -> System.getenv("IT_DB_PASSWORD"));
+        }
+    }
 }
 ```
 
@@ -1035,16 +1055,33 @@ class BookMapperIT extends AbstractIT {
         assertThat(page.getRecords()).hasSize(3);
         assertThat(page.getTotal()).isEqualTo(6);
     }
+
+    @Test
+    void 乐观锁真实执行() {
+        // 乐观锁拦截器的静默失效守卫：version 必须 +1；旧 version 再更新必须 0 行
+        Book book = bookMapper.selectById(1L);
+        int oldVersion = book.getVersion();
+        book.setAvailableLicenses(book.getAvailableLicenses() - 1);
+        assertThat(bookMapper.updateById(book)).isEqualTo(1);
+        assertThat(bookMapper.selectById(1L).getVersion()).isEqualTo(oldVersion + 1);
+        // 拦截器会把递增后的 version 写回内存实体，需手动恢复旧值才是真正的过期快照
+        book.setVersion(oldVersion);
+        assertThat(bookMapper.updateById(book)).isEqualTo(0); // 旧实体再更新，WHERE version 不命中
+        Book current = bookMapper.selectById(1L);
+        current.setAvailableLicenses(current.getTotalLicenses()); // 还原种子数据
+        assertThat(bookMapper.updateById(current)).isEqualTo(1);
+    }
 }
 ```
 
-- [ ] **Step 5: 运行集成测试**（需要 Docker）
+- [ ] **Step 5: 运行集成测试**（外部 MySQL 直连：设 IT_DB_* 环境变量；有 Docker 时不设则走 Testcontainers 容器）
 
 ```bash
-mvn verify -Dtest=SkipThis -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=BookMapperIT
+# 外部 MySQL 直连（真实地址/密码由执行环境提供，不落入仓库文档）
+JAVA_HOME="<jdk21路径>" IT_DB_URL="jdbc:mysql://<host>:<port>/elibrary?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC" IT_DB_USER=<user> IT_DB_PASSWORD=<password> mvn -s "<settings路径>" verify -Dtest=SkipThis -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=BookMapperIT
 ```
 
-Expected: `Tests run: 3, Failures: 0`（迁移成功 + 种子 6 本 + CI collation 生效 + 分页插件真实执行）
+Expected: `Tests run: 4, Failures: 0`（迁移成功 + 种子 6 本 + CI collation 生效 + 分页插件真实执行 + 乐观锁真实执行）
 
 - [ ] **Step 6: Commit**
 
@@ -2015,7 +2052,7 @@ class BookServiceTest {
     void 详情带borrowedByYou() {
         Book book = book(1L, 3, 1);
         when(bookMapper.selectById(1L)).thenReturn(book);
-        when(bookMapper.existsActiveBorrow(1L, 42L)).thenReturn(true);
+        when(bookMapper.existsActiveBorrow(42L, 1L)).thenReturn(true);
 
         BookDetailResponse detail = bookService.getDetail(1L, 42L);
 
@@ -2097,7 +2134,10 @@ import com.elibrary.book.domain.Book;
 // 写侧跨 feature 唯一通道：拆分时把实现换成 REST 客户端，LoanService 一行不改
 public interface BookFacade {
     Book getBook(Long id);
+
+    /** book 必须经 getBook/selectById 加载（version 非 null，乐观锁拦截器才生效） */
     void reserveLicense(Book book);
+
     void releaseLicense(Long bookId);
 }
 ```
@@ -2205,7 +2245,7 @@ public class BookService {
         if (book == null) {
             throw new BookNotFoundException("书籍不存在: id=" + id);
         }
-        boolean borrowedByYou = bookMapper.existsActiveBorrow(id, userId);
+        boolean borrowedByYou = bookMapper.existsActiveBorrow(userId, id);
         return new BookDetailResponse(book.getId(), book.getTitle(), book.getAuthor(),
                 book.getCategory(), book.getDescription(), book.getAvailableLicenses(), borrowedByYou);
     }
@@ -2939,6 +2979,65 @@ Expected: `Tests run: 4` / `Tests run: 4`，全绿
 git add src/
 git commit -m "feat: 归还与在借列表 API（非本人 404、overdue 派生）"
 ```
+
+**追加：LoanMapperIT（JOIN 投影映射冒烟）**——map-underscore 自动映射失败是静默 null，mock 测试测不到，必须有真库冒烟（T5 审查发现的永久覆盖空洞）：
+
+- Create: `src/test/java/com/elibrary/loan/mapper/LoanMapperIT.java`
+
+```java
+package com.elibrary.loan.mapper;
+
+import com.elibrary.AbstractIT;
+import com.elibrary.book.mapper.BookMapper;
+import com.elibrary.loan.domain.Loan;
+import com.elibrary.user.domain.User;
+import com.elibrary.user.mapper.UserMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class LoanMapperIT extends AbstractIT {
+
+    @Autowired LoanMapper loanMapper;
+    @Autowired UserMapper userMapper;
+    @Autowired BookMapper bookMapper;
+
+    @Test
+    void joinProjectionAndCountQueriesMapCorrectly() {
+        var user = new User();
+        user.setUsername("projection_" + System.nanoTime());
+        user.setPassword("x");
+        userMapper.insert(user);
+        var book = bookMapper.selectList(null).get(0);
+        Loan loan = Loan.borrow(user.getId(), book.getId(), LocalDateTime.now(ZoneOffset.UTC));
+        loanMapper.insert(loan);
+
+        var views = loanMapper.selectActiveWithBook(user.getId());
+        assertThat(views).hasSize(1);
+        var view = views.get(0);
+        assertThat(view.getBookId()).isEqualTo(book.getId());
+        assertThat(view.getTitle()).isEqualTo(book.getTitle());
+        assertThat(view.getAuthor()).isEqualTo(book.getAuthor());
+        assertThat(view.getBorrowedAt()).isNotNull();
+        assertThat(view.getDueAt()).isNotNull();
+        assertThat(view.getReturnedAt()).isNull();
+
+        assertThat(bookMapper.existsActiveBorrow(user.getId(), book.getId())).isTrue();
+        assertThat(loanMapper.countActiveByUser(user.getId())).isEqualTo(1);
+        assertThat(loanMapper.existsActiveByUserAndBook(user.getId(), book.getId())).isTrue();
+
+        // 清理，避免污染其他测试
+        loanMapper.deleteById(loan.getId());
+        userMapper.deleteById(user.getId());
+    }
+}
+```
+
+运行（同 IT 命令，`-Dit.test=LoanMapperIT`）→ 期望 `Tests run: 1, Failures: 0`；commit：`test: JOIN 投影与计数查询真库冒烟`。
 
 ---
 
