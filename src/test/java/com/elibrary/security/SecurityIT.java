@@ -41,10 +41,11 @@ class SecurityIT extends AbstractIT {
 
     @Test
     void loginEndpointIsPermitted() throws Exception {
-        // controller 未实现前是 404；T9 落地后此测试改期望 400（{} 缺字段 → VALIDATION_FAILED）
+        // login 端点免认证放行：{} 缺字段 → 400 VALIDATION_FAILED（穿透到 controller 而非 401）
         mockMvc.perform(post("/api/auth/login")
                         .contentType("application/json")
                         .content("{}"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNotFound());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
     }
 }
