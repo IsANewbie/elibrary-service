@@ -48,4 +48,20 @@ class SecurityIT extends AbstractIT {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
     }
+
+    @Test
+    void validTokenPassesFilterChainToController() throws Exception {
+        // login → token → 穿过 JwtAuthFilter → controller：JWT 主线端到端
+        String body = mockMvc.perform(post("/api/auth/login")
+                        .contentType("application/json")
+                        .content("{\"username\":\"alice\",\"password\":\"password123\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = com.fasterxml.jackson.databind.json.JsonMapper.builder().build()
+                .readTree(body).get("token").asText();
+        mockMvc.perform(get("/api/books").param("page", "1").param("size", "3")
+                        .header(org.springframework.http.HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray());
+    }
 }
