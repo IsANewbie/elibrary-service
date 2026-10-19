@@ -26,7 +26,8 @@ class SecurityIT extends AbstractIT {
     void protectedEndpointWithoutTokenReturns401ProblemJson() throws Exception {
         mockMvc.perform(get("/api/books"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                // 严格带 charset 才是真钉子：只有显式 setCharacterEncoding(UTF-8) 存在时头里才有 ;charset=（Mock 对 +json 有 UTF-8 特例）
+                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
                 .andExpect(jsonPath("$.title").value("Unauthorized"))
                 .andExpect(jsonPath("$.detail").value("缺少或无效的 Bearer token"));
     }
