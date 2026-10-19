@@ -2,9 +2,12 @@ package com.elibrary.loan.application;
 
 import com.elibrary.book.api.BookFacade;
 import com.elibrary.book.domain.Book;
+import com.elibrary.loan.api.LoanResponse;
 import com.elibrary.loan.domain.Loan;
+import com.elibrary.loan.domain.LoanAlreadyReturnedException;
 import com.elibrary.loan.domain.LoanDuplicateException;
 import com.elibrary.loan.domain.LoanLimitException;
+import com.elibrary.loan.domain.LoanNotFoundException;
 import com.elibrary.loan.domain.LoanPolicy;
 import com.elibrary.loan.mapper.LoanMapper;
 import com.elibrary.user.api.UserFacade;
@@ -14,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 /**
  * 借阅/归还/在借列表应用服务：事务、锁顺序、编排（业务规则在聚合内）
@@ -60,5 +64,34 @@ public class LoanService {
             throw e;
         }
         return loan;
+    }
+
+    /**
+     * 归还：归属校验（非本人 404 防探测）→ 状态机校验（重复归还 409）→ 更新 loan → 释放名额。
+     * 不取 user 锁只碰 Book：依赖方向 user→book 单向无环，无死锁。
+     */
+    @Transactional
+    public LoanResponse returnLoan(Long userId, Long loanId) {
+        Loan loan = loanMapper.selectById(loanId);
+        if (loan == null || !loan.getUserId().equals(userId)) {
+            throw new LoanNotFoundException("借阅记录不存在: id=" + loanId);
+        }
+        loan.markReturned(LocalDateTime.now(ZoneOffset.UTC));
+        loanMapper.updateById(loan);
+        bookFacade.releaseLicense(loan.getBookId());
+        Book book = bookFacade.getBook(loan.getBookId());
+        return new LoanResponse(loan.getId(), loan.getBookId(), book.getTitle(), book.getAuthor(),
+                loan.getBorrowedAt(), loan.getDueAt(), loan.getReturnedAt(), false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<LoanResponse> currentLoans(Long userId) {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        return loanMapper.selectActiveWithBook(userId).stream()
+                .map(v -> new LoanResponse(v.getId(), v.getBookId(), v.getTitle(), v.getAuthor(),
+                        v.getBorrowedAt(), v.getDueAt(), v.getReturnedAt(),
+                        // SQL 已过滤 returned_at IS NULL，active 隐式成立；时间比较走唯一谓词
+                        LoanPolicy.isOverdue(v.getDueAt(), now)))
+                .toList();
     }
 }
