@@ -14,8 +14,7 @@ public final class LoanPolicy {
     public static final int LOAN_DAYS = 14;
 
     /**
-     * overdue 判定的唯一真相（严格大于）：active && now > dueAt。
-     * Loan.isOverdue 与在借列表派生共用，防公式双写漂移。
+     * 本谓词仅实现时间比较（严格大于 now > dueAt）；active 守卫由调用方保证。
      */
     public static boolean isOverdue(LocalDateTime dueAt, LocalDateTime now) {
         return now.isAfter(dueAt);
