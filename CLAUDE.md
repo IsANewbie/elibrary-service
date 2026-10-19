@@ -48,6 +48,7 @@ MP Wrapper 只出现在查询组装处，不出现在业务判断处；JOIN 投�
 中文交流，技术术语保留英文；先设计打磨确认再写代码，不跳步；所有决策要能讲出取舍。
 注释用中文，只写”为什么”，不复述代码。类头 Javadoc 三件套（主代码与测试类都要）：
 `/** 一行中文职责描述 · @author link · @date yyyy/MM/dd（文件创建日期） */`。
+测试方法名用英文行为式驼峰命名（如 `borrowDecrementsAvailableLicenses`），不加 @DisplayName；可读性靠命名 + 方法内中文注释。
 异常：业务规则违反抛领域异常，继承 `DomainException`，带稳定 errorCode。
 Git 用 Conventional Commits，一行说清意图。
 
