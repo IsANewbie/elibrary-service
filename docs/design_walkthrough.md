@@ -171,6 +171,7 @@ CREATE TABLE loans (
 ```
 
 - 不加外键：为微服务拆分留路（跨库后 FK 必删），归属校验在应用层——README 说明
+- collation 显式 pin `utf8mb4_0900_ai_ci`：CI 语义（keyword 免 lower()、username 唯一性）是设计不变量，不交给 server 默认值；CHECK 命名 `chk_*`；`idx_loans_book_user (book_id, user_id)` 支撑详情页 borrowedByYou 查询
 - `DATETIME(6)` 微秒精度；应用层统一 UTC 约定
 - MP 实体映射生成列：`@TableField(insertStrategy/updateStrategy = NEVER)`
 
