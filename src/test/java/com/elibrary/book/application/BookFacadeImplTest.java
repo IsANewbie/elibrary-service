@@ -53,7 +53,8 @@ class BookFacadeImplTest {
         Book stale = book(1L, 3, 2);
         Book fresh = book(1L, 3, 3);
         when(bookMapper.updateById(any(Book.class))).thenReturn(0, 1); // 第一次冲突，第二次成功
-        when(bookMapper.selectById(1L)).thenReturn(fresh);
+        // 冲突重载必须当前读（RR 隔离下普通 select 读事务快照会拿到过期 version）
+        when(bookMapper.selectByIdForUpdate(1L)).thenReturn(fresh);
 
         facade.reserveLicense(stale);
 
@@ -64,7 +65,7 @@ class BookFacadeImplTest {
     void conflictAfterRetryThrowsConcurrentModification() {
         Book book = book(1L, 3, 3);
         when(bookMapper.updateById(any(Book.class))).thenReturn(0, 0);
-        when(bookMapper.selectById(1L)).thenReturn(book);
+        when(bookMapper.selectByIdForUpdate(1L)).thenReturn(book);
 
         assertThatThrownBy(() -> facade.reserveLicense(book))
                 .isInstanceOf(OptimisticLockConflictException.class);
@@ -81,7 +82,7 @@ class BookFacadeImplTest {
     @Test
     void releaseLicenseReloadsAndUpdates() {
         Book book = book(1L, 3, 2);
-        when(bookMapper.selectById(1L)).thenReturn(book);
+        when(bookMapper.selectById(1L)).thenReturn(book); // releaseLicense 首次加载
         when(bookMapper.updateById(any(Book.class))).thenReturn(1);
 
         facade.releaseLicense(1L);

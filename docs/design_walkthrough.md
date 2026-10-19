@@ -39,8 +39,9 @@
 | 竞态 | 场景 | 解法 |
 |---|---|---|
 | A 抢最后名额 | 两事务同读 available=1 | Book `@Version` 乐观锁一方失败 + `CHECK (available_licenses >= 0)` 兜底，绝不超卖 |
-| B 乐观锁假冲突 | 名额充足但 version 冲突 | 自动重试一次（MP `updateById` 影响行数 = 0 视为冲突）；备选原子 UPDATE 因绕过聚合被否 |
+| B 乐观锁假冲突 | 名额充足但 version 冲突 | 自动重试一次；**冲突后重载必须当前读**（`SELECT ... FOR UPDATE`）——RR 隔离下普通 select 读事务快照，拿到的仍是过期 version，重试必然再冲突（并发 IT 实证） |
 | C 同用户并发双击 | 两请求同时过 ④⑤ 检查 | user 行悲观锁（`SELECT ... FOR UPDATE`）串行化同用户借阅；⑤（同书重复借）另有生成列唯一索引兜底，④（在借数上限）无 DB 约束可表达故必须靠锁 |
+| E 并发双归还 | 两事务同时归还同一 loan | **条件 UPDATE 状态机守卫**：`UPDATE loans SET returned_at=? WHERE id=? AND returned_at IS NULL`，恰好一个事务命中；loans 无 version 列，与生成列唯一索引同属"DB 级守卫防应用 bug"哲学 |
 
 **锁组合的设计逻辑**：user 行悲观（保正确性，锁冷行无争用）+ book 行乐观（保吞吐，读多写少）+ DB 约束兜底（防应用 bug）。
 

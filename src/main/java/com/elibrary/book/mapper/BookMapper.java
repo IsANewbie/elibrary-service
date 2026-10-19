@@ -16,4 +16,8 @@ public interface BookMapper extends BaseMapper<Book> {
     // 读侧跨表投影（声明的拆分债）：详情页 borrowedByYou
     @Select("SELECT EXISTS(SELECT 1 FROM loans WHERE book_id = #{bookId} AND user_id = #{userId} AND returned_at IS NULL)")
     boolean existsActiveBorrow(@Param("userId") Long userId, @Param("bookId") Long bookId);
+
+    /** 乐观锁冲突后的重载必须当前读：RR 隔离下普通 select 读事务快照，会拿到过期 version 无限失败 */
+    @Select("SELECT * FROM books WHERE id = #{id} FOR UPDATE")
+    Book selectByIdForUpdate(@Param("id") Long id);
 }

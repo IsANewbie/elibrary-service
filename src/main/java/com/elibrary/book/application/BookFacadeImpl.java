@@ -53,9 +53,16 @@ public class BookFacadeImpl implements BookFacade {
             if (bookMapper.updateById(current) == 1) {
                 return;
             }
-            // 冲突后 reload 新版本再试（MP 会把递增后的 version 写回实体，旧实体作废）
-            current = getBook(book.getId());
+            // 冲突后必须当前读重载：RR 隔离下普通 select 读事务快照，拿到的仍是过期 version
+            current = requireBook(bookMapper.selectByIdForUpdate(book.getId()));
         }
         throw new OptimisticLockConflictException(conflictMessage);
+    }
+
+    private Book requireBook(Book book) {
+        if (book == null) {
+            throw new com.elibrary.book.domain.BookNotFoundException("书籍不存在");
+        }
+        return book;
     }
 }

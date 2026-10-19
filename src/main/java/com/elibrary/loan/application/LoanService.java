@@ -67,7 +67,7 @@ public class LoanService {
     }
 
     /**
-     * 归还：归属校验（非本人 404 防探测）→ 状态机校验（重复归还 409）→ 更新 loan → 释放名额。
+     * 归还：归属校验（非本人 404 防探测）→ 条件更新状态机（并发双归还恰好一个命中）→ 释放名额。
      * 不取 user 锁只碰 Book：依赖方向 user→book 单向无环，无死锁。
      */
     @Transactional
@@ -76,12 +76,14 @@ public class LoanService {
         if (loan == null || !loan.getUserId().equals(userId)) {
             throw new LoanNotFoundException("借阅记录不存在: id=" + loanId);
         }
-        loan.markReturned(LocalDateTime.now(ZoneOffset.UTC));
-        loanMapper.updateById(loan);
+        // 并发双归还：先碰状态机的一方命中，后者在此得 409（未到 release，名额不双放）
+        if (loanMapper.markReturned(loanId, LocalDateTime.now(ZoneOffset.UTC)) == 0) {
+            throw new LoanAlreadyReturnedException("该借阅已归还: loan=" + loanId);
+        }
         bookFacade.releaseLicense(loan.getBookId());
         Book book = bookFacade.getBook(loan.getBookId());
         return new LoanResponse(loan.getId(), loan.getBookId(), book.getTitle(), book.getAuthor(),
-                loan.getBorrowedAt(), loan.getDueAt(), loan.getReturnedAt(), false);
+                loan.getBorrowedAt(), loan.getDueAt(), LocalDateTime.now(ZoneOffset.UTC), false);
     }
 
     @Transactional(readOnly = true)

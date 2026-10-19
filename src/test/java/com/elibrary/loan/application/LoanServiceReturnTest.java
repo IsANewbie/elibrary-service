@@ -64,6 +64,8 @@ class LoanServiceReturnTest {
     void returnUpdatesLoanAndReleasesLicense() {
         Loan loan = activeLoan(1L, 1L, 2L);
         when(loanMapper.selectById(1L)).thenReturn(loan);
+        when(loanMapper.markReturned(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.any())).thenReturn(1);
         Book book = new Book();
         book.setId(2L);
         book.setTitle("重构");
@@ -73,7 +75,6 @@ class LoanServiceReturnTest {
         var response = loanService.returnLoan(1L, 1L);
 
         assertThat(response.returnedAt()).isNotNull();
-        verify(loanMapper).updateById(loan);
         verify(bookFacade).releaseLicense(2L);
     }
 
