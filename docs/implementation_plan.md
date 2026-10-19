@@ -232,6 +232,9 @@ public class ELibraryApplication {
 
 ```yaml
 spring:
+  autoconfigure:
+    # 排除无人消费的默认用户自动配置，仅产生 generated password 日志噪音
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   datasource:
     url: ${MYSQL_URL:jdbc:mysql://localhost:3306/elibrary?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
     username: ${MYSQL_USER:root}
@@ -1293,8 +1296,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 // principal 直接放 userId：业务层零转换
                 SecurityContextHolder.getContext().setAuthentication(
                         new UsernamePasswordAuthenticationToken(userId, null, List.of()));
-            } catch (JwtException | IllegalArgumentException ignored) {
-                // 解析失败保持未认证，由 entry point 统一 401
+            } catch (JwtException | IllegalArgumentException e) {
+                // 解析失败保持未认证，由 entry point 统一 401（异常面已被 JwtServiceTest 契约钉死）
+                log.debug("无效 Bearer token: {}", e.getClass().getSimpleName());
             }
         }
         chain.doFilter(request, response);
@@ -1334,6 +1338,9 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
                 HttpStatus.UNAUTHORIZED, "缺少或无效的 Bearer token");
         problem.setTitle(HttpStatus.UNAUTHORIZED.getReasonPhrase());
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        // UTF-8 必须显式声明：容器默认 ISO-8859-1 会把中文 detail 编成问号
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer"); // RFC 6750：告知客户端需要 Bearer
         response.setContentType("application/problem+json");
         response.getWriter().write(objectMapper.writeValueAsString(problem));
     }
@@ -1367,7 +1374,8 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                    .requestMatchers("/api/auth/login").permitAll()
+                    // 收紧到 POST：GET/DELETE 打 login 不该免认证放行
+                    .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                     .anyRequest().authenticated())
             .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint))
             .addFilterBefore(new JwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
@@ -1406,18 +1414,28 @@ class SecurityIT extends AbstractIT {
     void 无token访问受保护接口返回401_problem_json() throws Exception {
         mockMvc.perform(get("/api/books"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().contentType("application/problem+json"))
-                .andExpect(jsonPath("$.title").value("Unauthorized"));
+                // 严格带 charset 才是真钉子：只有显式 setCharacterEncoding(UTF-8) 存在时头里才有 ;charset=
+                //（Mock 对 +json 有 UTF-8 特例，仅靠 $.detail 文案断言钉不住回归）
+                .andExpect(content().contentType("application/problem+json;charset=UTF-8"))
+                .andExpect(jsonPath("$.title").value("Unauthorized"))
+                .andExpect(jsonPath("$.detail").value("缺少或无效的 Bearer token"));
+    }
+
+    @Test
+    void 无效BearerToken返回401_problem_json() throws Exception {
+        // 过滤器 catch 分支（本任务唯一新生产分支）的集成覆盖：不 500、不留半认证
+        mockMvc.perform(get("/api/books").header(org.springframework.http.HttpHeaders.AUTHORIZATION, "Bearer not-a-jwt"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
     }
 
     @Test
     void login端点免认证放行() throws Exception {
-        // controller 未实现前是 404；断言重点是"不是 401"（permitAll 生效）
-        int status = mockMvc.perform(post("/api/auth/login")
+        // controller 未实现前是 404；T9 落地后此测试改期望 400（{} 缺字段 → VALIDATION_FAILED）
+        mockMvc.perform(post("/api/auth/login")
                         .contentType("application/json")
                         .content("{}"))
-                .andReturn().getResponse().getStatus();
-        org.assertj.core.api.Assertions.assertThat(status).isNotEqualTo(401);
+                .andExpect(status().isNotFound());
     }
 }
 ```
@@ -1428,7 +1446,7 @@ class SecurityIT extends AbstractIT {
 mvn verify -Dtest=SkipThis -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=SecurityIT
 ```
 
-Expected: `Tests run: 2, Failures: 0`
+Expected: `Tests run: 3, Failures: 0`
 
 - [ ] **Step 6: Commit**
 
@@ -2467,6 +2485,27 @@ git add src/
 git commit -m "feat: 书籍浏览/详情 API（分页校验 400 不钳位）"
 ```
 
+**追加：SecurityIT 补端到端主线路径**（T7 审查发现：全计划无一条 IT 带合法 token 穿过真实过滤器链打到 controller——JWT 应用最核心的一根线只有手工 curl 覆盖）：
+
+```java
+    @Test
+    void validTokenPassesFilterChainToController() throws Exception {
+        // login → token → 穿过 JwtAuthFilter → controller：JWT 主线端到端
+        String token = mockMvc.perform(post("/api/auth/login")
+                        .contentType("application/json")
+                        .content("{\"username\":\"alice\",\"password\":\"password123\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()
+                .replaceAll(".*\"token\":\"([^\"]+)\".*", "$1");
+        mockMvc.perform(get("/api/books").param("page", "1").param("size", "3")
+                        .header(org.springframework.http.HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray());
+    }
+```
+
+运行（外部 MySQL，`-Dit.test=SecurityIT`）→ 期望 `Tests run: 4`；并入本任务的 commit。
+
 ---
 
 ### Task 12: UserFacade + LoanService.borrow（借阅校验链）
@@ -3268,7 +3307,7 @@ git commit -m "test: 四竞态并发集成测试（真 MySQL 验证锁策略）"
 
 1. **项目概述**：一段话 + 5 功能列表
 2. **快速开始**：环境要求（JDK 21、Maven、Docker）；数据库要求 **MySQL ≥ 8.0.16**（CHECK 约束生效的最低版本），示例与测试镜像统一钉在 8.4 LTS 以保证可复现；启动 MySQL（`docker run --name elibrary-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=elibrary -p 3306:3306 -d mysql:8.4`）；`mvn verify`（含集成测试）；`mvn spring-boot:run`；种子账号 alice/bob（password123）；**显著标注：JWT_SECRET 仅为本地默认值，任何真实部署必须以环境变量注入**（对称密钥公开即全量冒充）；时钟偏移未设容差（单实例无影响，多实例需 clockSkewSeconds）；三条 curl 示例（login→token、GET /api/books、POST /api/loans）含期望响应片段
-3. **API 文档**：6 端点（方法/路径/入参/响应示例）+ 错误码全表（照 design_walkthrough §8 抄录，HTTP/errorCode/场景三列）
+3. **API 文档**：6 端点（方法/路径/入参/响应示例）+ 错误码全表（照 design_walkthrough §8 抄录，HTTP/errorCode/场景三列）；附 Security 层 401 说明（无业务 errorCode、响应带 `WWW-Authenticate: Bearer`）与「无角色模型，403 不可达」的取舍声明
 4. **Assumptions**：A1–A11 全文（照 requirements_analysis §3 抄录，逐条）
 5. **设计决策**：
    - 许可模型（数字内容 = 并发许可，非实体副本）
