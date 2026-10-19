@@ -10,9 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 质量、设计取舍、可维护性优先于功能完整；未明确假设写进 README。
 
 ## 当前阶段
-需求分析 v2 与设计推演 v2 已定稿（`docs/requirements_analysis.md` + `docs/design_walkthrough.md`），代码未开始（等待确认后再实现）。实现顺序：骨架 → 领域模型 → Security+JWT → REST API → 测试 → README。
-实现借阅、异常处理、API 前先读 `docs/design_walkthrough.md`（错误码全景与竞态分析）。
-仓库尚无构建文件、尚未 git init（用户暂缓）；骨架建立后在此补充构建、测试、跑单个测试的命令。
+全部 16 个任务（T0–T15）已完成并验证：60 单测 + 16 集成测试全绿，curl 冒烟通过。
+实现过程中的重要修正（均有并发 IT 或变异测试实证）：乐观锁冲突后重载必须当前读（RR 快照）；归还用条件 UPDATE 状态机守卫；协议异常按原生状态返回不吞 500。
+构建/测试命令（本机）：`JAVA_HOME="D:/Program Files/Java/jdk-21" mvn -s "E:/Tools/apache-maven-3.9.3/conf/settings.xml" test`（单测）；加 `IT_DB_URL/IT_DB_USER/IT_DB_PASSWORD` 环境变量 + `verify` 跑集成测试（外部 MySQL 直连，或留空走 Testcontainers）。
 
 ## 技术栈
 Java + Spring Boot（Web / Security / Validation）+ **MyBatis-Plus**（弃 Spring Data JPA，锁敏感场景 SQL 透明优先，README 需论证）。
