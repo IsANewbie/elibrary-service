@@ -13,7 +13,7 @@ mybatis-plus:
 elibrary:
   jwt:
     # 仅为本地默认值，生产经环境变量注入
-    secret: ${JWT_SECRET:ZXRoaWJyYXJ5LWRldi1vbmx5LXNlY3JldC1rZXktMzIteWJ5dGVzLWxvbmc=}
+    secret: ${JWT_SECRET:ZWxpYnJhcnktZGV2LW9ubHktc2VjcmV0LWtleS1ub3QtZm9yLXByb2R1Y3Rpb24=}
     expire-hours: 24
 
 logging:

@@ -246,7 +246,7 @@ mybatis-plus:
 elibrary:
   jwt:
     # 仅为本地默认值，生产经环境变量注入
-    secret: ${JWT_SECRET:ZXRoaWJyYXJ5LWRldi1vbmx5LXNlY3JldC1rZXktMzIteWJ5dGVzLWxvbmc=}
+    secret: ${JWT_SECRET:ZWxpYnJhcnktZGV2LW9ubHktc2VjcmV0LWtleS1ub3QtZm9yLXByb2R1Y3Rpb24=}
     expire-hours: 24
 
 logging:
@@ -1114,7 +1114,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class JwtServiceTest {
 
     // 与 application.yml 默认值同源，测试自带
-    private static final String SECRET = "ZXRoaWJyYXJ5LWRldi1vbmx5LXNlY3JldC1rZXktMzIteWJ5dGVzLWxvbmc=";
+    private static final String SECRET = "ZWxpYnJhcnktZGV2LW9ubHktc2VjcmV0LWtleS1ub3QtZm9yLXByb2R1Y3Rpb24=";
 
     @Test
     void 签发并解析回userId() {
@@ -1136,6 +1136,24 @@ class JwtServiceTest {
         String token = service.generate(42L) + "x";
         assertThatThrownBy(() -> service.parseUserId(token)).isInstanceOf(JwtException.class);
     }
+
+    @Test
+    void 空token抛IllegalArgumentException() {
+        JwtService service = new JwtService(new JwtProperties(SECRET, 24));
+        assertThatThrownBy(() -> service.parseUserId(""))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 非数字subject抛NumberFormatException() {
+        // 自签合法签名但 sub 非数字：NumberFormatException extends IllegalArgumentException——T7 过滤器 catch 范围的契约依据
+        javax.crypto.SecretKey key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(
+                io.jsonwebtoken.io.Decoders.BASE64.decode(SECRET));
+        String token = io.jsonwebtoken.Jwts.builder().subject("alice").signWith(key).compact();
+        JwtService service = new JwtService(new JwtProperties(SECRET, 24));
+        assertThatThrownBy(() -> service.parseUserId(token))
+                .isInstanceOf(NumberFormatException.class);
+    }
 }
 ```
 
@@ -1152,10 +1170,14 @@ Expected: COMPILATION ERROR
 ```java
 package com.elibrary.user.application;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
+@Validated
 @ConfigurationProperties(prefix = "elibrary.jwt")
-public record JwtProperties(String secret, int expireHours) {}
+public record JwtProperties(@NotBlank String secret, @Positive int expireHours) {}
 ```
 
 ```java
@@ -1215,7 +1237,7 @@ public class ELibraryApplication { /* 原样 */ }
 mvn test -Dtest=JwtServiceTest
 ```
 
-Expected: `Tests run: 3, Failures: 0`
+Expected: `Tests run: 5, Failures: 0`（往返/过期/篡改/空 token/非数字 subject）
 
 - [ ] **Step 5: Commit**
 
@@ -3245,7 +3267,7 @@ git commit -m "test: 四竞态并发集成测试（真 MySQL 验证锁策略）"
 - [ ] **Step 1: 写 README**，各节必含内容：
 
 1. **项目概述**：一段话 + 5 功能列表
-2. **快速开始**：环境要求（JDK 21、Maven、Docker）；数据库要求 **MySQL ≥ 8.0.16**（CHECK 约束生效的最低版本），示例与测试镜像统一钉在 8.4 LTS 以保证可复现；启动 MySQL（`docker run --name elibrary-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=elibrary -p 3306:3306 -d mysql:8.4`）；`mvn verify`（含集成测试）；`mvn spring-boot:run`；种子账号 alice/bob（password123）；三条 curl 示例（login→token、GET /api/books、POST /api/loans）含期望响应片段
+2. **快速开始**：环境要求（JDK 21、Maven、Docker）；数据库要求 **MySQL ≥ 8.0.16**（CHECK 约束生效的最低版本），示例与测试镜像统一钉在 8.4 LTS 以保证可复现；启动 MySQL（`docker run --name elibrary-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=elibrary -p 3306:3306 -d mysql:8.4`）；`mvn verify`（含集成测试）；`mvn spring-boot:run`；种子账号 alice/bob（password123）；**显著标注：JWT_SECRET 仅为本地默认值，任何真实部署必须以环境变量注入**（对称密钥公开即全量冒充）；时钟偏移未设容差（单实例无影响，多实例需 clockSkewSeconds）；三条 curl 示例（login→token、GET /api/books、POST /api/loans）含期望响应片段
 3. **API 文档**：6 端点（方法/路径/入参/响应示例）+ 错误码全表（照 design_walkthrough §8 抄录，HTTP/errorCode/场景三列）
 4. **Assumptions**：A1–A11 全文（照 requirements_analysis §3 抄录，逐条）
 5. **设计决策**：

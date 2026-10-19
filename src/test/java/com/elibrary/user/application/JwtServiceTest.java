@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class JwtServiceTest {
 
     // 与 application.yml 默认值同源，测试自带
-    private static final String SECRET = "ZXRoaWJyYXJ5LWRldi1vbmx5LXNlY3JldC1rZXktMzIteWJ5dGVzLWxvbmc=";
+    private static final String SECRET = "ZWxpYnJhcnktZGV2LW9ubHktc2VjcmV0LWtleS1ub3QtZm9yLXByb2R1Y3Rpb24=";
 
     @Test
     void generatesAndParsesUserIdRoundTrip() {
@@ -36,5 +36,23 @@ class JwtServiceTest {
         JwtService service = new JwtService(new JwtProperties(SECRET, 24));
         String token = service.generate(42L) + "x";
         assertThatThrownBy(() -> service.parseUserId(token)).isInstanceOf(JwtException.class);
+    }
+
+    @Test
+    void blankTokenThrowsIllegalArgumentException() {
+        JwtService service = new JwtService(new JwtProperties(SECRET, 24));
+        assertThatThrownBy(() -> service.parseUserId(""))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void nonNumericSubjectThrowsNumberFormatException() {
+        // 自签合法签名但 sub 非数字的 token：NumberFormatException extends IllegalArgumentException
+        javax.crypto.SecretKey key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(
+                io.jsonwebtoken.io.Decoders.BASE64.decode(SECRET));
+        String token = io.jsonwebtoken.Jwts.builder().subject("alice").signWith(key).compact();
+        JwtService service = new JwtService(new JwtProperties(SECRET, 24));
+        assertThatThrownBy(() -> service.parseUserId(token))
+                .isInstanceOf(NumberFormatException.class);
     }
 }
