@@ -593,6 +593,13 @@ class LoanTest {
     }
 
     @Test
+    void 恰好到期时刻不算逾期() {
+        // 口径契约：now == dueAt 不算逾期（严格大于），钉死与列表派生共用的判定
+        Loan loan = Loan.borrow(1L, 2L, now);
+        assertThat(loan.isOverdue(now.plusDays(14))).isFalse();
+    }
+
+    @Test
     void 归还后不再在借也不逾期() {
         Loan loan = Loan.borrow(1L, 2L, now);
         loan.markReturned(now.plusDays(3));
@@ -623,12 +630,22 @@ Expected: COMPILATION ERROR
 ```java
 package com.elibrary.loan.domain;
 
+import java.time.LocalDateTime;
+
 // 数值集中一处，需求只给了单一数字，类别化配置见 README 演进节（YAGNI）
 public final class LoanPolicy {
     public static final int MAX_ACTIVE_LOANS = 5;
     public static final int LOAN_DAYS = 14;
 
     private LoanPolicy() {}
+
+    /**
+     * overdue 判定的唯一真相（严格大于）：active && now > dueAt。
+     * Loan.isOverdue 与在借列表派生共用，防公式双写漂移。
+     */
+    public static boolean isOverdue(LocalDateTime dueAt, LocalDateTime now) {
+        return now.isAfter(dueAt);
+    }
 }
 ```
 
@@ -662,7 +679,8 @@ public class Book {
     private Integer version;
 
     public void borrow() {
-        if (availableLicenses == null || availableLicenses <= 0) {
+        // total/available 两列 NOT NULL（schema 契约），null 即半初始化对象属编程错误，不在此防御
+        if (availableLicenses <= 0) {
             throw new NoLicenseException("可借名额已耗尽: " + title);
         }
         availableLicenses--;
@@ -731,7 +749,7 @@ public class Loan {
     }
 
     public boolean isOverdue(LocalDateTime now) {
-        return isActive() && now.isAfter(dueAt);
+        return isActive() && LoanPolicy.isOverdue(dueAt, now);
     }
 }
 ```
@@ -742,7 +760,7 @@ public class Loan {
 mvn test -Dtest='BookTest,LoanTest'
 ```
 
-Expected: `Tests run: 8, Failures: 0`
+Expected: `Tests run: 9, Failures: 0`
 
 - [ ] **Step 8: Commit**
 
@@ -2752,7 +2770,9 @@ Expected: COMPILATION ERROR
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         return loanMapper.selectActiveWithBook(userId).stream()
                 .map(v -> new LoanResponse(v.getId(), v.getBookId(), v.getTitle(), v.getAuthor(),
-                        v.getBorrowedAt(), v.getDueAt(), v.getReturnedAt(), v.getDueAt().isBefore(now)))
+                        v.getBorrowedAt(), v.getDueAt(), v.getReturnedAt(),
+                        // SQL 已过滤 returned_at IS NULL，active 隐式成立；时间比较走唯一谓词
+                        LoanPolicy.isOverdue(v.getDueAt(), now)))
                 .toList();
     }
 ```

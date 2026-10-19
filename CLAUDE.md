@@ -30,7 +30,7 @@ JWT 无状态认证（jjwt HS256，种子用户 + login，不做注册）。测�
 ## 不可违背的设计约束
 - 数字内容 = 并发许可（license），非实体副本；借期 14 天，每用户最多 5 本在借。
 - 借阅锁顺序固定：先 user 行悲观锁，后 Book 乐观锁 + DB 兜底；乐观锁冲突自动重试一次。
-- 状态不落库：active/returned/overdue 全部由时间戳派生。
+- 状态不落库：active/returned/overdue 全部由时间戳派生；overdue 时间比较唯一入口 `LoanPolicy.isOverdue`（Loan.isOverdue 与列表派生共用，防公式双写）。
 - 认证用 Spring Security + JWT，无状态；GET /loans 的当前用户从 JWT 解出。
 - 非本人 loan 返回 404（防越权探测）；重复归还 409。
 - 错误响应统一 RFC 7807 problem+json + 业务 errorCode；404/409/400 映射集中一处。
