@@ -19,7 +19,9 @@ public class MybatisPlusConfig {
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
+        PaginationInnerInterceptor pagination = new PaginationInnerInterceptor(DbType.MYSQL);
+        pagination.setMaxLimit(100L); // 与 API 的 size 上限一致，纵深防御
+        interceptor.addInnerInterceptor(pagination);
         interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
         return interceptor;
     }

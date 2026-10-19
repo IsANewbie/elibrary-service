@@ -14,6 +14,7 @@ import org.apache.ibatis.annotations.Select;
 public interface UserMapper extends BaseMapper<User> {
 
     // 锁显式写在 SQL：借阅链路的第一步，语义一目了然
+    /** 必须在写事务内调用：autocommit 下 FOR UPDATE 的锁随语句结束即释放，静默无效 */
     @Select("SELECT * FROM users WHERE id = #{id} FOR UPDATE")
     User selectByIdForUpdate(@Param("id") Long id);
 }

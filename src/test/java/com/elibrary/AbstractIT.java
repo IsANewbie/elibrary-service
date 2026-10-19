@@ -23,6 +23,8 @@ public abstract class AbstractIT {
     static {
         if (EXTERNAL_URL == null) {
             MYSQL.start(); // 手动启动：外部库路径不触发容器生命周期
+        } else if (System.getenv("IT_DB_USER") == null || System.getenv("IT_DB_PASSWORD") == null) {
+            throw new IllegalStateException("设了 IT_DB_URL 就必须同时设 IT_DB_USER/IT_DB_PASSWORD");
         }
     }
 

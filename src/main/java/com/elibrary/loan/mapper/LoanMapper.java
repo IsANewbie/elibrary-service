@@ -24,7 +24,7 @@ public interface LoanMapper extends BaseMapper<Loan> {
             SELECT l.id, l.book_id, b.title, b.author, l.borrowed_at, l.due_at, l.returned_at
             FROM loans l JOIN books b ON l.book_id = b.id
             WHERE l.user_id = #{userId} AND l.returned_at IS NULL
-            ORDER BY l.borrowed_at DESC
+            ORDER BY l.borrowed_at DESC, l.id DESC
             """)
     java.util.List<LoanWithBookView> selectActiveWithBook(@Param("userId") Long userId);
 }

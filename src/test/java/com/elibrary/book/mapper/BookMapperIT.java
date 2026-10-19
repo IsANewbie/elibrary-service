@@ -40,4 +40,22 @@ class BookMapperIT extends AbstractIT {
         assertThat(page.getRecords()).hasSize(3);
         assertThat(page.getTotal()).isEqualTo(6);
     }
+
+    @Test
+    void optimisticLockerReallyExecutes() {
+        // 乐观锁拦截器的静默失效守卫：version 必须 +1；旧 version 再更新必须 0 行
+        Book book = bookMapper.selectById(1L);
+        int oldVersion = book.getVersion();
+        book.setAvailableLicenses(book.getAvailableLicenses() - 1);
+        assertThat(bookMapper.updateById(book)).isEqualTo(1);
+        assertThat(bookMapper.selectById(1L).getVersion()).isEqualTo(oldVersion + 1);
+        // 同一旧实体再更新，WHERE version 不命中
+        // 拦截器会把递增后的 version 写回实体，需手动恢复旧值才是真正的过期快照
+        book.setVersion(oldVersion);
+        assertThat(bookMapper.updateById(book)).isEqualTo(0);
+        // 还原种子数据
+        Book current = bookMapper.selectById(1L);
+        current.setAvailableLicenses(current.getTotalLicenses());
+        assertThat(bookMapper.updateById(current)).isEqualTo(1);
+    }
 }
