@@ -16,6 +16,18 @@
 
 **验证命令约定：** `mvn test` = 领域/Service/Web 切片（无需 Docker）；`mvn verify` = 全部含 Testcontainers 集成测试（需 Docker）；单测：`mvn test -Dtest=LoanTest`。
 
+**类头规范（所有任务的所有类，主代码与测试类都加）：**
+
+```java
+/**
+ * <一行中文职责描述>
+ *
+ * @author link
+ * @date <yyyy/MM/dd 文件创建日期>
+ */
+```
+职责描述写类的存在理由而非复述类名；方法级注释仍遵循"只写为什么"。
+
 ---
 
 ### Task 0: git 仓库初始化
@@ -284,7 +296,19 @@ git commit -m "feat: Maven 骨架与全局配置"
 ```java
 package com.elibrary.common.domain;
 
+import com.elibrary.book.domain.BookNotFoundException;
+import com.elibrary.book.domain.NoLicenseException;
+import com.elibrary.loan.domain.LoanAlreadyReturnedException;
+import com.elibrary.loan.domain.LoanDuplicateException;
+import com.elibrary.loan.domain.LoanLimitException;
+import com.elibrary.loan.domain.LoanNotFoundException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.util.stream.Stream;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DomainExceptionTest {
@@ -296,8 +320,37 @@ class DomainExceptionTest {
         assertThat(ex.getMessage()).isEqualTo("loan 不存在");
     }
 
+    @Test
+    void cause链构造器保留根因() {
+        var root = new IllegalStateException("uq_loans_user_active_book");
+        var ex = new CauseForTest("重复借阅", root);
+        assertThat(ex.getCause()).isSameAs(root);
+    }
+
+    // 构造器绑定哪个 code 编译器不查，贴错则 HTTP 状态与 errorCode 双错，全覆盖兜底
+    @ParameterizedTest
+    @MethodSource("subclassBindings")
+    void 子类绑定正确的ErrorCode(DomainException ex, ErrorCode expected) {
+        assertThat(ex.getCode()).isEqualTo(expected);
+    }
+
+    static Stream<Arguments> subclassBindings() {
+        return Stream.of(
+                Arguments.of(new BookNotFoundException("x"), ErrorCode.BOOK_NOT_FOUND),
+                Arguments.of(new NoLicenseException("x"), ErrorCode.BOOK_NO_LICENSE),
+                Arguments.of(new LoanNotFoundException("x"), ErrorCode.LOAN_NOT_FOUND),
+                Arguments.of(new LoanLimitException("x"), ErrorCode.LOAN_LIMIT_REACHED),
+                Arguments.of(new LoanDuplicateException("x"), ErrorCode.LOAN_DUPLICATE),
+                Arguments.of(new LoanAlreadyReturnedException("x"), ErrorCode.LOAN_ALREADY_RETURNED),
+                Arguments.of(new OptimisticLockConflictException("x"), ErrorCode.CONCURRENT_MODIFICATION));
+    }
+
     static class LoanNotFoundForTest extends DomainException {
         LoanNotFoundForTest(String message) { super(ErrorCode.LOAN_NOT_FOUND, message); }
+    }
+
+    static class CauseForTest extends DomainException {
+        CauseForTest(String message, Throwable cause) { super(ErrorCode.LOAN_DUPLICATE, message, cause); }
     }
 }
 ```
@@ -339,6 +392,12 @@ public abstract class DomainException extends RuntimeException {
 
     protected DomainException(ErrorCode code, String message) {
         super(message);
+        this.code = code;
+    }
+
+    // 保留根因：DB 约束兜底翻译等场景不能让原始异常蒸发
+    protected DomainException(ErrorCode code, String message, Throwable cause) {
+        super(message, cause);
         this.code = code;
     }
 }
@@ -398,6 +457,9 @@ import com.elibrary.common.domain.ErrorCode;
 
 public class LoanDuplicateException extends DomainException {
     public LoanDuplicateException(String message) { super(ErrorCode.LOAN_DUPLICATE, message); }
+
+    // 供唯一索引兜底翻译链根因
+    public LoanDuplicateException(String message, Throwable cause) { super(ErrorCode.LOAN_DUPLICATE, message, cause); }
 }
 ```
 
@@ -427,7 +489,7 @@ public class OptimisticLockConflictException extends DomainException {
 mvn test -Dtest=DomainExceptionTest
 ```
 
-Expected: `Tests run: 1, Failures: 0`
+Expected: `Tests run: 9, Failures: 0`（2 个普通测试 + 7 个参数化绑定）
 
 - [ ] **Step 5: Commit**
 
@@ -1399,6 +1461,7 @@ public class GlobalExceptionHandler {
             ErrorCode.LOAN_DUPLICATE, HttpStatus.CONFLICT,
             ErrorCode.LOAN_ALREADY_RETURNED, HttpStatus.CONFLICT,
             ErrorCode.CONCURRENT_MODIFICATION, HttpStatus.CONFLICT);
+    // 注意：Map.of 上限 10 对，第 10 个 code 加入时换 Map.ofEntries 或 EnumMap
 
     @ExceptionHandler(DomainException.class)
     public ProblemDetail handleDomain(DomainException ex) {
@@ -2519,8 +2582,11 @@ public class LoanService {
         try {
             loanMapper.insert(loan);
         } catch (DuplicateKeyException e) {
-            // 并发双击穿透应用检查时，生成列唯一索引兜底
-            throw new LoanDuplicateException("重复借阅（唯一约束兜底命中）");
+            // 并发双击穿透应用检查时，生成列唯一索引兜底；仅翻译目标约束，其他冲突不吞并保留根因
+            if (e.getMessage() != null && e.getMessage().contains("uq_loans_user_active_book")) {
+                throw new LoanDuplicateException("重复借阅（唯一约束兜底命中）", e);
+            }
+            throw e;
         }
         return loan;
     }
