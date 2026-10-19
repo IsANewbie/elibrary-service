@@ -22,3 +22,6 @@ elibrary:
 logging:
   level:
     com.elibrary: INFO
+  # %X{traceId} 取 MDC（Logback 语法），与 TraceIdFilter 配合实现按请求 grep 全链路日志
+  pattern:
+    level: "%5p [%X{traceId:-}]"

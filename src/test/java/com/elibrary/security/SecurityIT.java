@@ -50,6 +50,13 @@ class SecurityIT extends AbstractIT {
     }
 
     @Test
+    void everyResponseCarriesTraceId() throws Exception {
+        // 用户报障凭 X-Trace-Id 即可 grep 全链路日志
+        mockMvc.perform(get("/api/books"))
+                .andExpect(header().exists("X-Trace-Id"));
+    }
+
+    @Test
     void validTokenPassesFilterChainToController() throws Exception {
         // login → token → 穿过 JwtAuthFilter → controller：JWT 主线端到端
         String body = mockMvc.perform(post("/api/auth/login")

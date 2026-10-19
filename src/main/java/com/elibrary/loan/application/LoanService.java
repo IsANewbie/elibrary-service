@@ -11,6 +11,7 @@ import com.elibrary.loan.domain.LoanNotFoundException;
 import com.elibrary.loan.domain.LoanPolicy;
 import com.elibrary.loan.mapper.LoanMapper;
 import com.elibrary.user.api.UserFacade;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ import java.util.List;
  * @author link
  * @date 2026/10/20
  */
+@Slf4j
 @Service
 public class LoanService {
 
@@ -59,10 +61,14 @@ public class LoanService {
         } catch (DuplicateKeyException e) {
             // 并发双击穿透应用检查时，生成列唯一索引兜底；仅翻译目标约束，其他冲突不吞并保留根因
             if (e.getMessage() != null && e.getMessage().contains("uq_loans_user_active_book")) {
+                // 兜底命中=应用检查被并发穿透的信号，排查竞态时的第一手证据
+                log.warn("唯一索引兜底命中（应用检查被穿透）: userId={}, bookId={}", userId, bookId);
                 throw new LoanDuplicateException("重复借阅（唯一约束兜底命中）", e);
             }
             throw e;
         }
+        log.info("借阅成功: loanId={}, userId={}, bookId={}, dueAt={}",
+                loan.getId(), userId, bookId, loan.getDueAt());
         return loan;
     }
 
@@ -78,10 +84,12 @@ public class LoanService {
         }
         // 并发双归还：先碰状态机的一方命中，后者在此得 409（未到 release，名额不双放）
         if (loanMapper.markReturned(loanId, LocalDateTime.now(ZoneOffset.UTC)) == 0) {
+            log.warn("重复归还被条件状态机拦截: userId={}, loanId={}", userId, loanId);
             throw new LoanAlreadyReturnedException("该借阅已归还: loan=" + loanId);
         }
         bookFacade.releaseLicense(loan.getBookId());
         Book book = bookFacade.getBook(loan.getBookId());
+        log.info("归还成功: loanId={}, userId={}, bookId={}", loanId, userId, loan.getBookId());
         return new LoanResponse(loan.getId(), loan.getBookId(), book.getTitle(), book.getAuthor(),
                 loan.getBorrowedAt(), loan.getDueAt(), LocalDateTime.now(ZoneOffset.UTC), false);
     }

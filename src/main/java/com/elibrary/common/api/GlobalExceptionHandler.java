@@ -49,6 +49,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DomainException.class)
     public ProblemDetail handleDomain(DomainException ex) {
         HttpStatus status = STATUS_BY_CODE.get(ex.getCode());
+        // 业务拒绝是正常分支：WARN 一行带 errorCode（用户侧已有响应语义，这里留服务端痕迹）
+        log.warn("业务拒绝 [{}]: {}", ex.getCode(), ex.getMessage());
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
         pd.setTitle(status.getReasonPhrase());
         pd.setProperty("errorCode", ex.getCode().name());

@@ -5,6 +5,7 @@ import com.elibrary.book.domain.Book;
 import com.elibrary.book.domain.BookNotFoundException;
 import com.elibrary.book.mapper.BookMapper;
 import com.elibrary.common.domain.OptimisticLockConflictException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.function.Consumer;
@@ -15,6 +16,7 @@ import java.util.function.Consumer;
  * @author link
  * @date 2026/10/20
  */
+@Slf4j
 @Service
 public class BookFacadeImpl implements BookFacade {
 
@@ -53,6 +55,8 @@ public class BookFacadeImpl implements BookFacade {
             if (bookMapper.updateById(current) == 1) {
                 return;
             }
+            // 重试是假冲突的常态处理（INFO）；高频出现则提示热点书，需关注
+            log.info("乐观锁冲突重试: bookId={}, attempt={}/{}", book.getId(), attempt + 1, MAX_ATTEMPTS);
             // 冲突后必须当前读重载：RR 隔离下普通 select 读事务快照，拿到的仍是过期 version
             current = requireBook(bookMapper.selectByIdForUpdate(book.getId()));
         }
