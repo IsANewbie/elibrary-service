@@ -1,0 +1,13 @@
+package com.elibrary.common.domain;
+
+public enum ErrorCode {
+    VALIDATION_FAILED,
+    INVALID_CREDENTIALS,
+    BOOK_NOT_FOUND,
+    LOAN_NOT_FOUND,
+    BOOK_NO_LICENSE,
+    LOAN_LIMIT_REACHED,
+    LOAN_DUPLICATE,
+    LOAN_ALREADY_RETURNED,
+    CONCURRENT_MODIFICATION
+}
