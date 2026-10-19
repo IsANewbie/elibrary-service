@@ -23,7 +23,7 @@
 **Files:**
 - Create: `.gitignore`
 
-- [ ] **Step 1: 初始化仓库并写 .gitignore**
+- [x] **Step 1: 初始化仓库并写 .gitignore**
 
 ```bash
 git init -b main
@@ -39,7 +39,7 @@ target/
 .DS_Store
 ```
 
-- [ ] **Step 2: 提交既有文档**
+- [x] **Step 2: 提交既有文档**
 
 ```bash
 git add .gitignore CLAUDE.md docs/
@@ -93,6 +93,12 @@ git commit -m "docs: 需求分析与设计推演 v2"
     <dependency>
       <groupId>com.baomidou</groupId>
       <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+      <version>${mybatis-plus.version}</version>
+    </dependency>
+    <!-- PaginationInnerInterceptor 自 MP 3.5.9 拆分的独立 artifact，缺它分页插件编译失败 -->
+    <dependency>
+      <groupId>com.baomidou</groupId>
+      <artifactId>mybatis-plus-jsqlparser</artifactId>
       <version>${mybatis-plus.version}</version>
     </dependency>
     <dependency>
@@ -207,7 +213,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-@MapperScan("com.elibrary.**.mapper")
+// lazyInitialization：@WebMvcTest 切片上下文没有 SqlSessionFactory，eager mapper 会让切片全部启动失败
+@MapperScan(value = "com.elibrary.**.mapper", lazyInitialization = "true")
 public class ELibraryApplication {
     public static void main(String[] args) {
         SpringApplication.run(ELibraryApplication.class, args);
@@ -935,6 +942,15 @@ class BookMapperIT extends AbstractIT {
                         .like(Book::getAuthor, "MARTIN FOWLER"));
         assertThat(count).isEqualTo(1);
     }
+
+    @Test
+    void 分页插件真实执行() {
+        // PaginationInnerInterceptor 真跑一次：依赖缺失/配置问题在此暴露，不漏到运行时
+        var page = bookMapper.selectPage(
+                com.baomidou.mybatisplus.extension.plugins.pagination.Page.of(1, 3), null);
+        assertThat(page.getRecords()).hasSize(3);
+        assertThat(page.getTotal()).isEqualTo(6);
+    }
 }
 ```
 
@@ -944,7 +960,7 @@ class BookMapperIT extends AbstractIT {
 mvn verify -Dtest=SkipThis -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=BookMapperIT
 ```
 
-Expected: `Tests run: 2, Failures: 0`（迁移成功 + 种子 6 本 + CI collation 生效）
+Expected: `Tests run: 3, Failures: 0`（迁移成功 + 种子 6 本 + CI collation 生效 + 分页插件真实执行）
 
 - [ ] **Step 6: Commit**
 
@@ -1067,7 +1083,7 @@ public class JwtService {
 
 ```java
 @SpringBootApplication
-@MapperScan("com.elibrary.**.mapper")
+@MapperScan(value = "com.elibrary.**.mapper", lazyInitialization = "true")
 @ConfigurationPropertiesScan
 public class ELibraryApplication { /* 原样 */ }
 ```
