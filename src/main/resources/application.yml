@@ -1,4 +1,7 @@
 spring:
+  autoconfigure:
+    # 排除无人消费的默认用户自动配置，仅产生 generated password 日志噪音
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   datasource:
     url: ${MYSQL_URL:jdbc:mysql://localhost:3306/elibrary?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
     username: ${MYSQL_USER:root}

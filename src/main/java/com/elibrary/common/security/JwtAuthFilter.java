@@ -6,6 +6,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,6 +21,7 @@ import java.util.List;
  * @author link
  * @date 2026/10/19
  */
+@Slf4j
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
@@ -38,8 +40,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 // principal 直接放 userId：业务层零转换
                 SecurityContextHolder.getContext().setAuthentication(
                         new UsernamePasswordAuthenticationToken(userId, null, List.of()));
-            } catch (JwtException | IllegalArgumentException ignored) {
+            } catch (JwtException | IllegalArgumentException e) {
                 // 解析失败保持未认证，由 entry point 统一 401（异常面已被 JwtServiceTest 契约钉死）
+                log.debug("无效 Bearer token: {}", e.getClass().getSimpleName());
             }
         }
         chain.doFilter(request, response);

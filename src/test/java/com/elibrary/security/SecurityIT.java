@@ -26,17 +26,24 @@ class SecurityIT extends AbstractIT {
     void protectedEndpointWithoutTokenReturns401ProblemJson() throws Exception {
         mockMvc.perform(get("/api/books"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().contentType("application/problem+json"))
-                .andExpect(jsonPath("$.title").value("Unauthorized"));
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Unauthorized"))
+                .andExpect(jsonPath("$.detail").value("缺少或无效的 Bearer token"));
+    }
+
+    @Test
+    void invalidBearerTokenReturns401ProblemJson() throws Exception {
+        mockMvc.perform(get("/api/books").header(org.springframework.http.HttpHeaders.AUTHORIZATION, "Bearer not-a-jwt"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
     }
 
     @Test
     void loginEndpointIsPermitted() throws Exception {
-        // controller 未实现前是 404；断言重点是"不是 401"（permitAll 生效）
-        int status = mockMvc.perform(post("/api/auth/login")
+        // controller 未实现前是 404；T9 落地后此测试改期望 400（{} 缺字段 → VALIDATION_FAILED）
+        mockMvc.perform(post("/api/auth/login")
                         .contentType("application/json")
                         .content("{}"))
-                .andReturn().getResponse().getStatus();
-        org.assertj.core.api.Assertions.assertThat(status).isNotEqualTo(401);
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNotFound());
     }
 }
