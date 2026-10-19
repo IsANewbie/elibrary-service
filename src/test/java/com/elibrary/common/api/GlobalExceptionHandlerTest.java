@@ -44,6 +44,28 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void 协议异常按原生状态返回() {
+        var ex = new org.springframework.web.HttpRequestMethodNotSupportedException("GET");
+        assertThat(handler.handleUnknown(ex).getStatus()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED.value());
+    }
+
+    @Test
+    void 方法级参数校验进400桶() throws Exception {
+        // 6.2.10 无 List 构造器，用最小非空 MethodValidationResult 构造（create 断言结果非空）
+        var mp = new org.springframework.core.MethodParameter(Sample.class.getDeclaredMethod("getBookId"), -1);
+        var error = new org.springframework.context.support.DefaultMessageSourceResolvable(
+                new String[]{"NotNull"}, "不能为空");
+        var pvr = new org.springframework.validation.method.ParameterValidationResult(mp, null, java.util.List.of(error));
+        var result = org.springframework.validation.method.MethodValidationResult.create(
+                new Sample(), Sample.class.getDeclaredMethod("getBookId"), java.util.List.of(pvr));
+        var ex = new org.springframework.web.method.annotation.HandlerMethodValidationException(result);
+        ProblemDetail pd = handler.handleBadRequest(ex);
+        assertThat(pd.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(pd.getProperties().get("errorCode")).isEqualTo("VALIDATION_FAILED");
+        assertThat(pd.getDetail()).isEqualTo("请求参数非法");
+    }
+
+    @Test
     void bodyValidationFailureReturns400WithFieldDetails() throws Exception {
         var ctor = Sample.class.getConstructor(String.class);
         var binding = new BeanPropertyBindingResult(new Sample(), "request");
