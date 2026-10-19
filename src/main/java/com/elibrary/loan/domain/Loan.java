@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 
 /**
  * 借阅聚合，状态由时间戳派生、归还状态机在聚合内
+ * 字段 setter 仅为 ORM 映射与测试搭建保留，状态变更必须走 borrow/markReturned。
  *
  * @author link
  * @date 2026/10/19
@@ -54,6 +55,6 @@ public class Loan {
     }
 
     public boolean isOverdue(LocalDateTime now) {
-        return isActive() && now.isAfter(dueAt);
+        return isActive() && LoanPolicy.isOverdue(dueAt, now);
     }
 }

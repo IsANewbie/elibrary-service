@@ -31,6 +31,13 @@ class LoanTest {
     }
 
     @Test
+    void overdueBoundaryIsStrictlyAfterDueDate() {
+        // 口径契约：now == dueAt 不算逾期（严格大于），钉死与列表派生共用的判定
+        Loan loan = Loan.borrow(1L, 2L, now);
+        assertThat(loan.isOverdue(now.plusDays(14))).isFalse();
+    }
+
+    @Test
     void returnedLoanIsInactiveAndNotOverdue() {
         Loan loan = Loan.borrow(1L, 2L, now);
         loan.markReturned(now.plusDays(3));

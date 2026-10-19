@@ -9,6 +9,7 @@ import lombok.Setter;
 
 /**
  * 书籍聚合，许可名额的占用与释放规则在聚合内
+ * 字段 setter 仅为 ORM 映射与测试搭建保留，名额变更必须走 borrow/release。
  *
  * @author link
  * @date 2026/10/19
@@ -31,7 +32,8 @@ public class Book {
     private Integer version;
 
     public void borrow() {
-        if (availableLicenses == null || availableLicenses <= 0) {
+        // total/available 两列 NOT NULL（schema 契约），null 即半初始化对象属编程错误，不在此防御
+        if (availableLicenses <= 0) {
             throw new NoLicenseException("可借名额已耗尽: " + title);
         }
         availableLicenses--;
