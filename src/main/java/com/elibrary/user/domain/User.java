@@ -18,7 +18,7 @@ import lombok.Setter;
 public class User {
 
     @TableId(type = IdType.AUTO)
-    private Long id;
-    private String username;
-    private String password;
+    private Long id;         // 主键
+    private String username; // 用户名（唯一，utf8mb4 CI 大小写不敏感）
+    private String password; // BCrypt 哈希（种子用户启动时注入）
 }

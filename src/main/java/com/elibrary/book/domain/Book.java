@@ -20,14 +20,15 @@ import lombok.Setter;
 public class Book {
 
     @TableId(type = IdType.AUTO)
-    private Long id;
-    private String title;
-    private String author;
-    private String category;
-    private String description;
-    private Integer totalLicenses;
-    private Integer availableLicenses;
+    private Long id;              // 主键
+    private String title;         // 书名（keyword 匹配列之一）
+    private String author;        // 作者（keyword 匹配列之一）
+    private String category;      // 类别（TECHNOLOGY/LITERATURE/JOURNAL，电子书与期刊不单独建模）
+    private String description;   // 简介（仅详情接口返回）
+    private Integer totalLicenses;      // 总许可数（并发借阅上限，CHECK 保证 available ≤ total）
+    private Integer availableLicenses;  // 当前可借名额（借 -1/还 +1）
 
+    // 乐观锁版本号：冲突时 updateById 影响 0 行；DB 加载后必非 null（列 NOT NULL DEFAULT 0）
     @Version
     private Integer version;
 

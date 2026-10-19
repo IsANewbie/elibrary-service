@@ -23,14 +23,14 @@ import java.time.LocalDateTime;
 public class Loan {
 
     @TableId(type = IdType.AUTO)
-    private Long id;
-    private Long userId;
-    private Long bookId;
-    private LocalDateTime borrowedAt;
-    private LocalDateTime dueAt;
-    private LocalDateTime returnedAt;
+    private Long id;                    // 主键
+    private Long userId;                // 借阅用户 id（无外键，归属校验在应用层）
+    private Long bookId;                // 书籍 id（无外键，归属校验在应用层）
+    private LocalDateTime borrowedAt;   // 借出时间（应用层 UTC）
+    private LocalDateTime dueAt;        // 应还时间 = borrowedAt + 14 天
+    private LocalDateTime returnedAt;   // 归还时间；null=在借——全系统唯一持久化状态变化
 
-    // MySQL 生成列（等效 partial unique index），只读
+    // MySQL 生成列（等效 partial unique index），只读：在借行=book_id/已归还=NULL
     @TableField(value = "active_book_id", insertStrategy = FieldStrategy.NEVER, updateStrategy = FieldStrategy.NEVER)
     private Long activeBookId;
 
