@@ -1471,12 +1471,11 @@ package com.elibrary.common.api;
 import com.elibrary.book.domain.NoLicenseException;
 import com.elibrary.loan.domain.LoanNotFoundException;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.validation.BeanPropertyBindingResult;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.method.annotation.MethodParameter;
 
 import java.util.Map;
 
@@ -1489,32 +1488,48 @@ class GlobalExceptionHandlerTest {
     @Test
     void 领域异常按errorCode映射状态码() {
         ProblemDetail pd = handler.handleDomain(new NoLicenseException("名额耗尽"));
-        assertThat(pd.getStatus()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(pd.getProperty("errorCode")).isEqualTo("BOOK_NO_LICENSE");
+        // Spring 6 的 ProblemDetail：getStatus() 返回 int，属性经 getProperties() 取
+        assertThat(pd.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(pd.getProperties().get("errorCode")).isEqualTo("BOOK_NO_LICENSE");
     }
 
     @Test
     void 非本人loan与不存在同映射404() {
         assertThat(handler.handleDomain(new LoanNotFoundException("x")).getStatus())
-                .isEqualTo(HttpStatus.NOT_FOUND);
+                .isEqualTo(HttpStatus.NOT_FOUND.value());
+    }
+
+    @Test
+    void 未映射路由返回404而非500() {
+        // Spring 6 无映射路径落进静态资源处理器抛 NoResourceFoundException，不能被兜底吞成 500
+        var ex = new org.springframework.web.servlet.resource.NoResourceFoundException(
+                org.springframework.http.HttpMethod.POST, "api/auth/login");
+        assertThat(handler.handleNotFound(ex).getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
     }
 
     @Test
     void body校验失败返回400带字段明细() throws Exception {
         var ctor = Sample.class.getConstructor(String.class);
-        var binding = new BeanPropertyBindingResult(new Object(), "request");
+        // rejectValue 需要 target 上真实存在该属性
+        var binding = new BeanPropertyBindingResult(new Sample(), "request");
         binding.rejectValue("bookId", "NotNull", "不能为空");
         var ex = new MethodArgumentNotValidException(new MethodParameter(ctor, 0), binding);
 
         ProblemDetail pd = handler.handleBodyValidation(ex);
 
-        assertThat(pd.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(pd.getProperty("errorCode")).isEqualTo("VALIDATION_FAILED");
-        assertThat(pd.getProperty("fields")).isEqualTo(Map.of("bookId", "不能为空"));
+        assertThat(pd.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(pd.getProperties().get("errorCode")).isEqualTo("VALIDATION_FAILED");
+        assertThat(pd.getProperties().get("fields")).isEqualTo(Map.of("bookId", "不能为空"));
     }
 
     static class Sample {
+        private String bookId;
+
+        public Sample() {}
         public Sample(String ignored) {}
+
+        public String getBookId() { return bookId; }
+        public void setBookId(String bookId) { this.bookId = bookId; }
     }
 }
 ```
@@ -1542,6 +1557,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -1561,6 +1577,15 @@ public class GlobalExceptionHandler {
             ErrorCode.LOAN_ALREADY_RETURNED, HttpStatus.CONFLICT,
             ErrorCode.CONCURRENT_MODIFICATION, HttpStatus.CONFLICT);
     // 注意：Map.of 上限 10 对，第 10 个 code 加入时换 Map.ofEntries 或 EnumMap
+
+    static {
+        // 新增 ErrorCode 忘配状态时启动即失败，而非处理时 NPE 变 500
+        var unmapped = java.util.EnumSet.allOf(ErrorCode.class);
+        STATUS_BY_CODE.keySet().forEach(unmapped::remove);
+        if (!unmapped.isEmpty()) {
+            throw new IllegalStateException("ErrorCode 未映射 HTTP 状态: " + unmapped);
+        }
+    }
 
     @ExceptionHandler(DomainException.class)
     public ProblemDetail handleDomain(DomainException ex) {
@@ -1584,16 +1609,40 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({jakarta.validation.ConstraintViolationException.class,
             MethodArgumentTypeMismatchException.class,
-            HttpMessageNotReadableException.class})
+            HttpMessageNotReadableException.class,
+            // Boot 3.5 中 @RequestParam/@PathVariable 上的约束抛的是 HandlerMethodValidationException
+            org.springframework.web.method.annotation.HandlerMethodValidationException.class})
     public ProblemDetail handleBadRequest(Exception ex) {
-        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "请求参数非法: " + ex.getMessage());
+        // 不回拼原始 message：类型不匹配/解析失败的内部信息不属于 API 契约
+        String detail = "请求参数非法";
+        if (ex instanceof MethodArgumentTypeMismatchException mismatch) {
+            detail = "参数 " + mismatch.getName() + " 的值非法";
+        }
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
         pd.setTitle(HttpStatus.BAD_REQUEST.getReasonPhrase());
         pd.setProperty("errorCode", ErrorCode.VALIDATION_FAILED.name());
         return pd;
     }
 
+    // 未映射路由在 Spring 6 落进静态资源处理器抛 NoResourceFoundException，不能被兜底吞成 500
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleNotFound(NoResourceFoundException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "资源不存在");
+        pd.setTitle(HttpStatus.NOT_FOUND.getReasonPhrase());
+        return pd;
+    }
+
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnknown(Exception ex) {
+        // Spring 内置协议异常（405/415/缺参等 ErrorResponse）按原生状态返回，不吞成 500
+        if (ex instanceof org.springframework.web.ErrorResponse er) {
+            log.warn("请求处理失败: {}", ex.getMessage());
+            HttpStatus status = HttpStatus.valueOf(er.getStatusCode().value());
+            ProblemDetail pd = ProblemDetail.forStatusAndDetail(status,
+                    er.getBody().getDetail() != null ? er.getBody().getDetail() : "请求方法或媒体类型不被接受");
+            pd.setTitle(status.getReasonPhrase());
+            return pd;
+        }
         log.error("未预期异常", ex);
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "服务内部错误");
         pd.setTitle(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
@@ -1616,7 +1665,7 @@ public class GlobalExceptionHandler {
 mvn test -Dtest=GlobalExceptionHandlerTest
 ```
 
-Expected: `Tests run: 3, Failures: 0`
+Expected: `Tests run: 6, Failures: 0`（409 映射/外借 404/未映射路由 404/body 校验/协议异常原生状态/方法级校验 400 桶）
 
 - [ ] **Step 5: Commit**
 
