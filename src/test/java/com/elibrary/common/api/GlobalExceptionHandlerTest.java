@@ -44,13 +44,13 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void 协议异常按原生状态返回() {
+    void protocolExceptionsKeepNativeStatus() {
         var ex = new org.springframework.web.HttpRequestMethodNotSupportedException("GET");
         assertThat(handler.handleUnknown(ex).getStatus()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED.value());
     }
 
     @Test
-    void 方法级参数校验进400桶() throws Exception {
+    void methodLevelValidationGoesTo400Bucket() throws Exception {
         // 6.2.10 无 List 构造器，用最小非空 MethodValidationResult 构造（create 断言结果非空）
         var mp = new org.springframework.core.MethodParameter(Sample.class.getDeclaredMethod("getBookId"), -1);
         var error = new org.springframework.context.support.DefaultMessageSourceResolvable(
