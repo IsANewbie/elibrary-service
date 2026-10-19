@@ -2,6 +2,12 @@ package com.elibrary.common.domain;
 
 import lombok.Getter;
 
+/**
+ * 领域异常抽象基类，携带稳定 ErrorCode 与可选 cause
+ *
+ * @author link
+ * @date 2026/10/19
+ */
 @Getter
 public abstract class DomainException extends RuntimeException {
     private final ErrorCode code;

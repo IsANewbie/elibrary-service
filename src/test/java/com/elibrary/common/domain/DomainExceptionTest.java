@@ -15,6 +15,12 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 领域异常体系单测：code 携带、cause 链、子类绑定全覆盖
+ *
+ * @author link
+ * @date 2026/10/19
+ */
 class DomainExceptionTest {
 
     @Test
