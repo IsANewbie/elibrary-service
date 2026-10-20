@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 当前阶段
 全部 16 个任务（T0–T15）已完成并验证：60 单测 + 17 集成测试全绿，curl 冒烟通过。
 实现过程中的重要修正（均有并发 IT 或变异测试实证）：乐观锁冲突后重载必须当前读（RR 快照）；归还用条件 UPDATE 状态机守卫；协议异常按原生状态返回不吞 500。
-构建/测试命令（本机）：`JAVA_HOME="D:/Program Files/Java/jdk-21" mvn -s "E:/Tools/apache-maven-3.9.3/conf/settings.xml" test`（单测）；加 `IT_DB_URL/IT_DB_USER/IT_DB_PASSWORD` 环境变量 + `verify` 跑集成测试（外部 MySQL 直连，或留空走 Testcontainers）。
+构建/测试命令：`mvn test`（单测）；加 `IT_DB_URL/IT_DB_USER/IT_DB_PASSWORD` 环境变量 + `verify` 跑集成测试（外部 MySQL 直连，或留空走 Testcontainers）。
 
 ## 技术栈
 Java + Spring Boot（Web / Security / Validation）+ **MyBatis-Plus**（弃 Spring Data JPA，锁敏感场景 SQL 透明优先，README 需论证）。
