@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 质量、设计取舍、可维护性优先于功能完整；未明确假设写进 README。
 
 ## 当前阶段
-全部 16 个任务（T0–T15）已完成并验证：60 单测 + 16 集成测试全绿，curl 冒烟通过。
+全部 16 个任务（T0–T15）已完成并验证：60 单测 + 17 集成测试全绿，curl 冒烟通过。
 实现过程中的重要修正（均有并发 IT 或变异测试实证）：乐观锁冲突后重载必须当前读（RR 快照）；归还用条件 UPDATE 状态机守卫；协议异常按原生状态返回不吞 500。
 构建/测试命令（本机）：`JAVA_HOME="D:/Program Files/Java/jdk-21" mvn -s "E:/Tools/apache-maven-3.9.3/conf/settings.xml" test`（单测）；加 `IT_DB_URL/IT_DB_USER/IT_DB_PASSWORD` 环境变量 + `verify` 跑集成测试（外部 MySQL 直连，或留空走 Testcontainers）。
 
@@ -35,7 +35,7 @@ JWT 无状态认证（jjwt HS256，种子用户 + login，不做注册）。测�
 - 非本人 loan 返回 404（防越权探测）；重复归还 409。
 - 错误响应统一 RFC 7807 problem+json + 业务 errorCode；404/409/400 映射集中一处。
 - 日志纪律：TraceIdFilter（最高优先级）每请求注入 MDC traceId + `X-Trace-Id` 响应头，pattern 用 Logback `%X{traceId:-}`（不是 Spring 占位符）；正向动作 INFO（登录/借阅/归还成功），业务拒绝 WARN 集中在 GlobalExceptionHandler，**并发事件单独点名**——唯一索引兜底命中 WARN（应用检查被穿透）、乐观锁重试 INFO、重复归还被拦截 WARN；ERROR 只留给未预期异常；不打 token/密码；MDC 在 finally 清理。
-- 测试：领域 JUnit + Service Mockito + @WebMvcTest + Testcontainers 集成（四竞态场景）；每个领域异常路径至少一个测试。
+- 测试：领域 JUnit + Service Mockito + @WebMvcTest + Testcontainers 集成（四竞态 + 兜底约束场景）；每个领域异常路径至少一个测试。
 - 刻意不引入 Redis/Kafka/gRPC；Idempotency-Key 不做；限额/借期保持固定值（类别化配置只进 README 演进节）。
 
 ## 代码组织
