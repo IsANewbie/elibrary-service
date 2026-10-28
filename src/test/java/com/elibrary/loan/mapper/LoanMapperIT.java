@@ -25,6 +25,7 @@ class LoanMapperIT extends AbstractIT {
     @Autowired UserMapper userMapper;
     @Autowired BookMapper bookMapper;
 
+    /** JOIN 投影字段全部映射非空、计数/EXISTS 查询返回真值（列映射静默 null 只有真库能暴露） */
     @Test
     void joinProjectionAndCountQueriesMapCorrectly() {
         var user = new User();

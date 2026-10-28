@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class DomainExceptionTest {
 
+    /** 领域异常携带稳定 errorCode 与业务消息 */
     @Test
     void carriesStableErrorCode() {
         var ex = new LoanNotFoundForTest("loan 不存在");
@@ -30,6 +31,7 @@ class DomainExceptionTest {
         assertThat(ex.getMessage()).isEqualTo("loan 不存在");
     }
 
+    /** cause 构造器保留根因异常（翻译异常不吞 DuplicateKeyException） */
     @Test
     void causeConstructorPreservesRootCause() {
         var root = new IllegalStateException("uq_loans_user_active_book");
@@ -37,7 +39,7 @@ class DomainExceptionTest {
         assertThat(ex.getCause()).isSameAs(root);
     }
 
-    // 构造器绑定哪个 code 编译器不查，贴错则 HTTP 状态与 errorCode 双错，全覆盖兜底
+    /** 全部领域异常子类绑定正确 code（编译器不查绑定，贴错则 HTTP 状态与 errorCode 双错） */
     @ParameterizedTest
     @MethodSource("subclassBindings")
     void subclassesBindCorrectErrorCode(DomainException ex, ErrorCode expected) {

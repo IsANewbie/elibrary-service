@@ -22,6 +22,7 @@ class SecurityIT extends AbstractIT {
     @Autowired
     MockMvc mockMvc;
 
+    /** 无 token 访问受保护端点返回 401 problem+json */
     @Test
     void protectedEndpointWithoutTokenReturns401ProblemJson() throws Exception {
         mockMvc.perform(get("/api/books"))
@@ -32,6 +33,7 @@ class SecurityIT extends AbstractIT {
                 .andExpect(jsonPath("$.detail").value("缺少或无效的 Bearer token"));
     }
 
+    /** 无效 Bearer token 同样 401（解析失败保持未认证，交 entry point 统一响应） */
     @Test
     void invalidBearerTokenReturns401ProblemJson() throws Exception {
         mockMvc.perform(get("/api/books").header(org.springframework.http.HttpHeaders.AUTHORIZATION, "Bearer not-a-jwt"))
@@ -39,6 +41,7 @@ class SecurityIT extends AbstractIT {
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
     }
 
+    /** login 端点免认证放行（缺字段请求穿透到 controller 得 400 而非 401） */
     @Test
     void loginEndpointIsPermitted() throws Exception {
         // login 端点免认证放行：{} 缺字段 → 400 VALIDATION_FAILED（穿透到 controller 而非 401）
@@ -49,6 +52,7 @@ class SecurityIT extends AbstractIT {
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
     }
 
+    /** 每个响应都带 X-Trace-Id 头（报障凭 id 定位全链路日志） */
     @Test
     void everyResponseCarriesTraceId() throws Exception {
         // 用户报障凭 X-Trace-Id 即可 grep 全链路日志
@@ -56,6 +60,7 @@ class SecurityIT extends AbstractIT {
                 .andExpect(header().exists("X-Trace-Id"));
     }
 
+    /** login → token → 穿过 JwtAuthFilter 到 controller：JWT 认证主线端到端 */
     @Test
     void validTokenPassesFilterChainToController() throws Exception {
         // login → token → 穿过 JwtAuthFilter → controller：JWT 主线端到端

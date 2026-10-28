@@ -38,6 +38,7 @@ class LoanServiceReturnTest {
     @Mock LoanMapper loanMapper;
     @InjectMocks LoanService loanService;
 
+    /** 非本人 loan 与不存在同抛 404，防 loan id 越权探测 */
     @Test
     void foreignLoanAndMissingLoanBothReturn404() {
         // id=1 的借阅属于 bob(userId=2)，alice(1) 访问 → 与不存在同响应，防 loan id 越权探测
@@ -49,6 +50,7 @@ class LoanServiceReturnTest {
         verify(bookFacade, never()).releaseLicense(org.mockito.ArgumentMatchers.any());
     }
 
+    /** 重复归还抛 409 且名额不双放 */
     @Test
     void alreadyReturnedLoanThrowsConflict() {
         Loan returned = activeLoan(1L, 1L, 2L);
@@ -60,6 +62,7 @@ class LoanServiceReturnTest {
         verify(bookFacade, never()).releaseLicense(org.mockito.ArgumentMatchers.any());
     }
 
+    /** 归还成功路径：落 returnedAt 并释放名额 */
     @Test
     void returnUpdatesLoanAndReleasesLicense() {
         Loan loan = activeLoan(1L, 1L, 2L);
@@ -78,6 +81,7 @@ class LoanServiceReturnTest {
         verify(bookFacade).releaseLicense(2L);
     }
 
+    /** 在借列表 overdue 标志由 dueAt 派生（已过 dueAt 即 true） */
     @Test
     void currentLoansDeriveOverdueFlag() {
         LoanWithBookView overdue = new LoanWithBookView();

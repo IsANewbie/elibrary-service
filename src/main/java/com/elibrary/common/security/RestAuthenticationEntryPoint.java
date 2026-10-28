@@ -36,6 +36,7 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
         problem.setTitle(HttpStatus.UNAUTHORIZED.getReasonPhrase());
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setContentType("application/problem+json");
+        // detail 是中文，当前环境容器默认 ISO-8859-1 会乱码；显式 UTF-8
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer"); // RFC 6750：告知客户端需要 Bearer
         response.getWriter().write(objectMapper.writeValueAsString(problem));

@@ -38,6 +38,7 @@ class LoanServiceBorrowTest {
     @Mock LoanMapper loanMapper;
     @InjectMocks LoanService loanService;
 
+    /** 校验链顺序即锁序设计：user 锁→书→上限→重复→扣名额→插入 */
     @Test
     void borrowFollowsFixedValidationChainOrder() {
         when(bookFacade.getBook(2L)).thenReturn(book(2L));
@@ -58,6 +59,7 @@ class LoanServiceBorrowTest {
         order.verify(loanMapper).insert(any(Loan.class));
     }
 
+    /** 第 5 笔在借后再借命中上限，且不扣名额 */
     @Test
     void fifthActiveLoanBlocksBorrow() {
         when(bookFacade.getBook(2L)).thenReturn(book(2L));
@@ -67,6 +69,7 @@ class LoanServiceBorrowTest {
         verify(bookFacade, never()).reserveLicense(any());
     }
 
+    /** 同书已有在借时拒绝借阅，且不扣名额 */
     @Test
     void duplicateActiveBorrowThrowsConflict() {
         when(bookFacade.getBook(2L)).thenReturn(book(2L));
@@ -77,6 +80,7 @@ class LoanServiceBorrowTest {
         verify(bookFacade, never()).reserveLicense(any());
     }
 
+    /** 唯一索引兜底命中翻译为 LoanDuplicateException 且保留根因 cause */
     @Test
     void uniqueIndexFallbackTranslatesToLoanDuplicate() {
         when(bookFacade.getBook(2L)).thenReturn(book(2L));

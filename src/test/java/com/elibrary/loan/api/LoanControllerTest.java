@@ -39,6 +39,7 @@ class LoanControllerTest {
     @MockitoBean
     LoanService loanService;
 
+    /** 借阅按资源创建语义返回 201 + Location 指向新资源 */
     @Test
     @WithMockUserId(1)
     void borrowReturns201WithLocation() throws Exception {
@@ -53,6 +54,7 @@ class LoanControllerTest {
                 .andExpect(jsonPath("$.id").value(10));
     }
 
+    /** bookId 缺失返回 400 且 fields 指明具体字段 */
     @Test
     @WithMockUserId(1)
     void nullBookIdReturns400WithFieldDetails() throws Exception {
@@ -61,6 +63,7 @@ class LoanControllerTest {
                 .andExpect(jsonPath("$.fields.bookId").exists());
     }
 
+    /** 非本人 loan 的归还返回 404（映射 LOAN_NOT_FOUND） */
     @Test
     @WithMockUserId(2)
     void foreignLoanReturns404() throws Exception {
@@ -71,6 +74,7 @@ class LoanControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("LOAN_NOT_FOUND"));
     }
 
+    /** 在借列表返回 200 裸数组（无分页信封） */
     @Test
     @WithMockUserId(1)
     void currentLoansReturns200Array() throws Exception {

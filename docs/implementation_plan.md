@@ -69,7 +69,7 @@ git commit -m "docs: 需求分析与设计推演 v2"
 - Create: `src/main/java/com/elibrary/ELibraryApplication.java`
 - Create: `src/main/resources/application.yml`
 
-- [ ] **Step 1: 写 pom.xml**（完整依赖一次到位，后续任务不再改）
+- [x] **Step 1: 写 pom.xml**（完整依赖一次到位，后续任务不再改）
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -288,7 +288,7 @@ git commit -m "feat: Maven 骨架与全局配置"
 - Create: `src/main/java/com/elibrary/common/domain/OptimisticLockConflictException.java`
 - Test: `src/test/java/com/elibrary/common/domain/DomainExceptionTest.java`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```java
 package com.elibrary.common.domain;
@@ -506,7 +506,7 @@ git commit -m "feat: 领域异常体系与稳定 errorCode"
 - Test: `src/test/java/com/elibrary/book/domain/BookTest.java`
 - Test: `src/test/java/com/elibrary/loan/domain/LoanTest.java`
 
-- [ ] **Step 1: 写 Book 失败测试**
+- [x] **Step 1: 写 Book 失败测试**
 
 ```java
 package com.elibrary.book.domain;
@@ -772,7 +772,7 @@ git commit -m "feat: Book/Loan 充血领域模型与借阅规则"
 - Create: `src/main/resources/db/migration/V1__init.sql`
 - Create: `src/main/resources/db/migration/V2__seed_books.sql`
 
-- [ ] **Step 1: 写 V1__init.sql**（DDL 与 design_walkthrough §10 一致；不加外键——为拆分留路，归属校验在应用层）
+- [x] **Step 1: 写 V1__init.sql**（DDL 与 design_walkthrough §10 一致；不加外键——为拆分留路，归属校验在应用层）
 
 ```sql
 CREATE TABLE users (
@@ -844,7 +844,7 @@ git commit -m "feat: Flyway schema（生成列唯一约束/CHECK 兜底）与书
 - Test: `src/test/java/com/elibrary/AbstractIT.java`
 - Test: `src/test/java/com/elibrary/book/mapper/BookMapperIT.java`
 
-- [ ] **Step 1: MybatisPlusConfig**（乐观锁 + 分页两个内置拦截器）
+- [x] **Step 1: MybatisPlusConfig**（乐观锁 + 分页两个内置拦截器）
 
 ```java
 package com.elibrary.common;
@@ -1103,7 +1103,7 @@ git commit -m "feat: MP 拦截器与 Mapper 层（FOR UPDATE/JOIN 投影）+ Tes
 - Modify: `src/main/java/com/elibrary/ELibraryApplication.java`（加 `@ConfigurationPropertiesScan`）
 - Test: `src/test/java/com/elibrary/user/application/JwtServiceTest.java`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```java
 package com.elibrary.user.application;
@@ -1234,7 +1234,7 @@ public class JwtService {
 public class ELibraryApplication { /* 原样 */ }
 ```
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 ```bash
 mvn test -Dtest=JwtServiceTest
@@ -1242,7 +1242,7 @@ mvn test -Dtest=JwtServiceTest
 
 Expected: `Tests run: 5, Failures: 0`（往返/过期/篡改/空 token/非数字 subject）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/
@@ -1259,7 +1259,7 @@ git commit -m "feat: JWT 签发与解析服务"
 - Create: `src/main/java/com/elibrary/common/security/SecurityConfig.java`
 - Test: `src/test/java/com/elibrary/security/SecurityIT.java`
 
-- [ ] **Step 1: JwtAuthFilter**（不注册为 @Component，避免 servlet 容器重复注册；无效 token 不在过滤器 401，统一留给 entry point）
+- [x] **Step 1: JwtAuthFilter**（不注册为 @Component，避免 servlet 容器重复注册；无效 token 不在过滤器 401，统一留给 entry point）
 
 ```java
 package com.elibrary.common.security;
@@ -1306,7 +1306,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 }
 ```
 
-- [ ] **Step 2: RestAuthenticationEntryPoint**
+- [x] **Step 2: RestAuthenticationEntryPoint**
 
 ```java
 package com.elibrary.common.security;
@@ -1347,7 +1347,7 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
 }
 ```
 
-- [ ] **Step 3: SecurityConfig**
+- [x] **Step 3: SecurityConfig**
 
 ```java
 package com.elibrary.common.security;
@@ -1389,7 +1389,7 @@ public class SecurityConfig {
 }
 ```
 
-- [ ] **Step 4: 写集成测试**
+- [x] **Step 4: 写集成测试**
 
 ```java
 package com.elibrary.security;
@@ -1440,7 +1440,7 @@ class SecurityIT extends AbstractIT {
 }
 ```
 
-- [ ] **Step 5: 运行**（需 Docker）
+- [x] **Step 5: 运行**（需 Docker）
 
 ```bash
 mvn verify -Dtest=SkipThis -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=SecurityIT
@@ -1448,7 +1448,7 @@ mvn verify -Dtest=SkipThis -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=Sec
 
 Expected: `Tests run: 3, Failures: 0`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/
@@ -1463,7 +1463,7 @@ git commit -m "feat: 无状态 JWT 安全链与 problem+json 401"
 - Create: `src/main/java/com/elibrary/common/api/GlobalExceptionHandler.java`
 - Test: `src/test/java/com/elibrary/common/api/GlobalExceptionHandlerTest.java`
 
-- [ ] **Step 1: 写失败测试**（handler 是纯类，直接单元测，不起 Spring）
+- [x] **Step 1: 写失败测试**（handler 是纯类，直接单元测，不起 Spring）
 
 ```java
 package com.elibrary.common.api;
@@ -1534,7 +1534,7 @@ class GlobalExceptionHandlerTest {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 ```bash
 mvn test -Dtest=GlobalExceptionHandlerTest
@@ -1542,7 +1542,7 @@ mvn test -Dtest=GlobalExceptionHandlerTest
 
 Expected: COMPILATION ERROR
 
-- [ ] **Step 3: 实现**（errorCode → HTTP 的唯一真相集中在这张表；领域层不感知 HTTP）
+- [x] **Step 3: 实现**（errorCode → HTTP 的唯一真相集中在这张表；领域层不感知 HTTP）
 
 ```java
 package com.elibrary.common.api;
@@ -1659,7 +1659,7 @@ public class GlobalExceptionHandler {
 }
 ```
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 ```bash
 mvn test -Dtest=GlobalExceptionHandlerTest
@@ -1667,7 +1667,7 @@ mvn test -Dtest=GlobalExceptionHandlerTest
 
 Expected: `Tests run: 6, Failures: 0`（409 映射/外借 404/未映射路由 404/body 校验/协议异常原生状态/方法级校验 400 桶）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/
@@ -1689,7 +1689,7 @@ git commit -m "feat: RFC 7807 全局异常映射（errorCode→HTTP 集中一处
 - Test: `src/test/java/com/elibrary/user/api/AuthControllerTest.java`
 - Test: `src/test/java/com/elibrary/user/LoginIT.java`
 
-- [ ] **Step 1: 写 AuthService 失败测试**
+- [x] **Step 1: 写 AuthService 失败测试**
 
 ```java
 package com.elibrary.user.application;
@@ -1751,7 +1751,7 @@ class AuthServiceTest {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 ```bash
 mvn test -Dtest=AuthServiceTest
@@ -1759,7 +1759,7 @@ mvn test -Dtest=AuthServiceTest
 
 Expected: COMPILATION ERROR
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 ```java
 package com.elibrary.user.domain;
@@ -1888,7 +1888,7 @@ package com.elibrary.user.api;
 public record LoginResponse(String token) {}
 ```
 
-- [ ] **Step 4: Web 切片测试**（`addFilters=false`：切片聚焦序列化与映射，安全链路已由 SecurityIT 覆盖）
+- [x] **Step 4: Web 切片测试**（`addFilters=false`：切片聚焦序列化与映射，安全链路已由 SecurityIT 覆盖）
 
 ```java
 package com.elibrary.user.api;
@@ -1949,7 +1949,7 @@ class AuthControllerTest {
 }
 ```
 
-- [ ] **Step 5: 端到端 IT**
+- [x] **Step 5: 端到端 IT**
 
 ```java
 package com.elibrary.user;
@@ -1988,7 +1988,7 @@ class LoginIT extends AbstractIT {
 }
 ```
 
-- [ ] **Step 6: 运行全部相关测试**
+- [x] **Step 6: 运行全部相关测试**
 
 ```bash
 mvn test -Dtest='AuthServiceTest,AuthControllerTest'
@@ -1997,7 +1997,7 @@ mvn verify -Dtest=SkipThis -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=Log
 
 Expected: 分别 `Tests run: 3` / `Tests run: 3`，全绿
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/
@@ -2018,7 +2018,7 @@ git commit -m "feat: 种子用户与 login 端点（JWT 签发）"
 - Test: `src/test/java/com/elibrary/book/application/BookFacadeImplTest.java`
 - Test: `src/test/java/com/elibrary/book/application/BookServiceTest.java`
 
-- [ ] **Step 1: 写 BookFacadeImpl 失败测试**（乐观锁重试语义：updateById 返回 0 行 → reload 重试一次 → 再失败抛冲突）
+- [x] **Step 1: 写 BookFacadeImpl 失败测试**（乐观锁重试语义：updateById 返回 0 行 → reload 重试一次 → 再失败抛冲突）
 
 ```java
 package com.elibrary.book.application;
@@ -2109,7 +2109,7 @@ class BookFacadeImplTest {
 }
 ```
 
-- [ ] **Step 2: 写 BookService 失败测试**
+- [x] **Step 2: 写 BookService 失败测试**
 
 ```java
 package com.elibrary.book.application;
@@ -2183,7 +2183,7 @@ class BookServiceTest {
 }
 ```
 
-- [ ] **Step 3: 运行确认失败**
+- [x] **Step 3: 运行确认失败**
 
 ```bash
 mvn test -Dtest='BookFacadeImplTest,BookServiceTest'
@@ -2191,7 +2191,7 @@ mvn test -Dtest='BookFacadeImplTest,BookServiceTest'
 
 Expected: COMPILATION ERROR
 
-- [ ] **Step 4: 实现 DTO 与 Facade**
+- [x] **Step 4: 实现 DTO 与 Facade**
 
 ```java
 package com.elibrary.book.api;
@@ -3075,7 +3075,7 @@ class LoanControllerTest {
 }
 ```
 
-- [ ] **Step 5: 运行全部新测试**
+- [x] **Step 5: 运行全部新测试**
 
 ```bash
 mvn test -Dtest='LoanServiceReturnTest,LoanControllerTest'
@@ -3083,7 +3083,7 @@ mvn test -Dtest='LoanServiceReturnTest,LoanControllerTest'
 
 Expected: `Tests run: 4` / `Tests run: 4`，全绿
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/

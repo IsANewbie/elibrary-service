@@ -18,11 +18,13 @@ class BookMapperIT extends AbstractIT {
     @Autowired
     BookMapper bookMapper;
 
+    /** 迁移全部执行且种子 6 本书就位（schema 即代码的冒烟） */
     @Test
     void migrationAndSeedDataInPlace() {
         assertThat(bookMapper.selectCount(null)).isEqualTo(6);
     }
 
+    /** 大写关键词命中混合大小写作者名：CI collation 免 lower() */
     @Test
     void keywordSearchIsCaseInsensitive() {
         // utf8mb4_0900_ai_ci 默认 CI collation：大写关键词命中混合大小写作者名，无需 lower()
@@ -32,6 +34,7 @@ class BookMapperIT extends AbstractIT {
         assertThat(count).isEqualTo(1);
     }
 
+    /** 分页拦截器真跑一次：配置缺失在 IT 暴露，不漏到运行时 */
     @Test
     void paginationInterceptorReallyExecutes() {
         // PaginationInnerInterceptor 真跑一次：依赖缺失/配置问题在此暴露，不漏到运行时
@@ -41,6 +44,7 @@ class BookMapperIT extends AbstractIT {
         assertThat(page.getTotal()).isEqualTo(6);
     }
 
+    /** 乐观锁拦截器静默失效守卫：version 自增且旧 version 更新必 0 行 */
     @Test
     void optimisticLockerReallyExecutes() {
         // 乐观锁拦截器的静默失效守卫：version 必须 +1；旧 version 再更新必须 0 行

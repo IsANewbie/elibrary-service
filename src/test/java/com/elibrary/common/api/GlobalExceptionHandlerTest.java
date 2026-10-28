@@ -23,6 +23,7 @@ class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
+    /** 领域异常按集中映射表出状态码与 errorCode */
     @Test
     void domainExceptionMapsToCentralizedStatus() {
         ProblemDetail pd = handler.handleDomain(new NoLicenseException("名额耗尽"));
@@ -30,12 +31,14 @@ class GlobalExceptionHandlerTest {
         assertThat(pd.getProperties().get("errorCode")).isEqualTo("BOOK_NO_LICENSE");
     }
 
+    /** LOAN_NOT_FOUND 映射 404（非本人与不存在同响应的前提） */
     @Test
     void foreignLoanMapsToSame404AsMissing() {
         assertThat(handler.handleDomain(new LoanNotFoundException("x")).getStatus())
                 .isEqualTo(HttpStatus.NOT_FOUND.value());
     }
 
+    /** 未映射路由落 NoResourceFoundException 出 404，不被兜底吞成 500 */
     @Test
     void unmatchedRouteMapsTo404Not500() {
         var ex = new org.springframework.web.servlet.resource.NoResourceFoundException(
@@ -43,12 +46,14 @@ class GlobalExceptionHandlerTest {
         assertThat(handler.handleNotFound(ex).getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
     }
 
+    /** 协议异常（405 等）保留原生状态返回，不吞成 500 */
     @Test
     void protocolExceptionsKeepNativeStatus() {
         var ex = new org.springframework.web.HttpRequestMethodNotSupportedException("GET");
         assertThat(handler.handleUnknown(ex).getStatus()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED.value());
     }
 
+    /** 方法级校验失败归入 400 VALIDATION_FAILED 桶 */
     @Test
     void methodLevelValidationGoesTo400Bucket() throws Exception {
         // 6.2.10 无 List 构造器，用最小非空 MethodValidationResult 构造（create 断言结果非空）
@@ -65,6 +70,7 @@ class GlobalExceptionHandlerTest {
         assertThat(pd.getDetail()).isEqualTo("请求参数非法");
     }
 
+    /** body 校验失败 400 且 fields 携带字段级错误明细 */
     @Test
     void bodyValidationFailureReturns400WithFieldDetails() throws Exception {
         var ctor = Sample.class.getConstructor(String.class);

@@ -30,6 +30,7 @@ class BookServiceTest {
     @Mock BookMapper bookMapper;
     @InjectMocks BookService bookService;
 
+    /** 详情聚合 borrowedByYou 与 availableLicenses 投影 */
     @Test
     void detailIncludesBorrowedByYou() {
         Book book = book(1L, 3, 1);
@@ -42,6 +43,7 @@ class BookServiceTest {
         assertThat(detail.availableLicenses()).isEqualTo(1);
     }
 
+    /** 书不存在抛 BookNotFoundException */
     @Test
     void missingDetailThrows404() {
         when(bookMapper.selectById(9L)).thenReturn(null);
@@ -49,6 +51,7 @@ class BookServiceTest {
                 .isInstanceOf(BookNotFoundException.class);
     }
 
+    /** 搜索结果映射 PageResponse 信封（content/total/page/size）与列表字段 */
     @Test
     void searchMapsPaginationAndResponse() {
         Page<Book> page = new Page<>(1, 10);

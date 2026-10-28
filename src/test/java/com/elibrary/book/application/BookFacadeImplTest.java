@@ -31,12 +31,14 @@ class BookFacadeImplTest {
     @Mock BookMapper bookMapper;
     @InjectMocks BookFacadeImpl facade;
 
+    /** 书不存在抛 BookNotFoundException（facade 层 404 语义） */
     @Test
     void missingBookThrows404() {
         when(bookMapper.selectById(9L)).thenReturn(null);
         assertThatThrownBy(() -> facade.getBook(9L)).isInstanceOf(BookNotFoundException.class);
     }
 
+    /** 无冲突时首次 update 即成功，名额扣减只发一次 SQL */
     @Test
     void reserveLicenseSucceedsOnFirstAttempt() {
         Book book = book(1L, 3, 3);
@@ -48,6 +50,7 @@ class BookFacadeImplTest {
         verify(bookMapper).updateById(book);
     }
 
+    /** 乐观锁冲突后当前读重载、重试一次成功（共两次 update） */
     @Test
     void optimisticLockConflictRetriesOnceAndSucceeds() {
         Book stale = book(1L, 3, 2);
@@ -61,6 +64,7 @@ class BookFacadeImplTest {
         verify(bookMapper, times(2)).updateById(any(Book.class));
     }
 
+    /** 重试后仍冲突抛 OptimisticLockConflictException（CONCURRENT_MODIFICATION） */
     @Test
     void conflictAfterRetryThrowsConcurrentModification() {
         Book book = book(1L, 3, 3);
@@ -71,6 +75,7 @@ class BookFacadeImplTest {
                 .isInstanceOf(OptimisticLockConflictException.class);
     }
 
+    /** 名额耗尽在任何 update 之前抛出，不发多余 SQL */
     @Test
     void exhaustedLicensesThrowNoLicenseWithoutUpdate() {
         Book book = book(1L, 1, 0);
@@ -79,6 +84,7 @@ class BookFacadeImplTest {
         verify(bookMapper, never()).updateById(any(Book.class));
     }
 
+    /** 释放路径：先加载再更新，名额加回 */
     @Test
     void releaseLicenseReloadsAndUpdates() {
         Book book = book(1L, 3, 2);

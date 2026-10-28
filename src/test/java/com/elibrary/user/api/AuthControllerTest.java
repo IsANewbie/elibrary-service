@@ -33,6 +33,7 @@ class AuthControllerTest {
     @MockitoBean
     AuthService authService;
 
+    /** 登录成功返回 token */
     @Test
     void loginSuccessReturnsToken() throws Exception {
         when(authService.login("alice", "password123")).thenReturn("jwt-token");
@@ -42,6 +43,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.token").value("jwt-token"));
     }
 
+    /** 凭证错误返回 401 problem+json 且 errorCode 为 INVALID_CREDENTIALS */
     @Test
     void loginFailureReturns401ProblemJsonWithErrorCode() throws Exception {
         when(authService.login(any(), any()))
@@ -53,6 +55,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("INVALID_CREDENTIALS"));
     }
 
+    /** 缺 password 字段返回 400 且指明具体字段 */
     @Test
     void missingFieldReturns400WithFieldDetails() throws Exception {
         mockMvc.perform(post("/api/auth/login").contentType(APPLICATION_JSON)

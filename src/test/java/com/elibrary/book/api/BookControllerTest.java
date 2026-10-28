@@ -36,6 +36,7 @@ class BookControllerTest {
     @MockitoBean
     BookService bookService;
 
+    /** 列表返回 200 与 PageResponse 信封结构 */
     @Test
     void listReturns200WithPageEnvelope() throws Exception {
         when(bookService.search(null, null, 1, 10)).thenReturn(
@@ -45,6 +46,7 @@ class BookControllerTest {
                 .andExpect(jsonPath("$.content").isArray());
     }
 
+    /** 非法页码显式 400，不悄悄钳位 */
     @Test
     void invalidPageReturns400WithoutClamping() throws Exception {
         // 页码非法显式 400，不悄悄钳位：参数校验在系统边界做
@@ -53,6 +55,7 @@ class BookControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
     }
 
+    /** 书不存在返回 404 problem+json 且带 errorCode */
     @Test
     @WithMockUserId // principal 非 null，stub 的 userId=1 才能命中
     void missingDetailReturns404ProblemJson() throws Exception {
@@ -63,6 +66,7 @@ class BookControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("BOOK_NOT_FOUND"));
     }
 
+    /** 当前用户从 principal 解出，不信任任何 userId 参数 */
     @Test
     @WithMockUserId(7)
     void detailResolvesCurrentUserFromPrincipal() throws Exception {

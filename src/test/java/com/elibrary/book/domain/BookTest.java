@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class BookTest {
 
+    /** 借出扣减一个可借名额 */
     @Test
     void borrowDecrementsAvailableLicenses() {
         Book book = book(3);
@@ -19,12 +20,14 @@ class BookTest {
         assertThat(book.getAvailableLicenses()).isEqualTo(2);
     }
 
+    /** 名额耗尽时借出抛 NoLicenseException */
     @Test
     void borrowThrowsNoLicenseWhenLicensesExhausted() {
         Book book = book(0);
         assertThatThrownBy(book::borrow).isInstanceOf(NoLicenseException.class);
     }
 
+    /** 归还释放回一个可借名额 */
     @Test
     void releaseIncrementsAvailableLicenses() {
         Book book = book(3, 1);
@@ -32,6 +35,7 @@ class BookTest {
         assertThat(book.getAvailableLicenses()).isEqualTo(2);
     }
 
+    /** 名额已满时释放抛 IllegalStateException（程序错误而非业务异常） */
     @Test
     void releaseThrowsIllegalStateWhenAlreadyFull() {
         // 双放名额是调用方 bug（loan 状态机已挡），不是业务分支，故用 IllegalStateException 而非领域异常

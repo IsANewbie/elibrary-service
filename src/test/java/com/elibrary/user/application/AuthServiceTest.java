@@ -30,6 +30,7 @@ class AuthServiceTest {
     @Mock JwtService jwtService;
     @InjectMocks AuthService authService;
 
+    /** 正确凭证换取 token */
     @Test
     void validCredentialsReturnToken() {
         User alice = user(1L, "alice", encoder.encode("password123"));
@@ -39,6 +40,7 @@ class AuthServiceTest {
         assertThat(authService.login("alice", "password123")).isEqualTo("jwt-token");
     }
 
+    /** 密码错误抛 InvalidCredentialsException */
     @Test
     void wrongPasswordThrowsInvalidCredentials() {
         User alice = user(1L, "alice", encoder.encode("password123"));
@@ -48,6 +50,7 @@ class AuthServiceTest {
                 .isInstanceOf(InvalidCredentialsException.class);
     }
 
+    /** 用户不存在与密码错误抛同一异常：防用户名枚举 */
     @Test
     void unknownUserFailsSameAsWrongPassword() {
         // 用户不存在与密码错误同响应：防用户名枚举

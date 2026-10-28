@@ -48,6 +48,7 @@ class LoanConcurrencyIT extends AbstractIT {
         jdbcTemplate.execute("UPDATE books SET available_licenses = total_licenses, version = 0");
     }
 
+    /** 竞态 A：8 人抢最后 1 个名额，恰好一人成功、绝不超卖 */
     @Test
     void raceALastLicenseGoesToExactlyOneBorrower() throws Exception {
         Long bookId = bookIdByTitle("代码整洁之道"); // 总共 1 个名额
@@ -62,6 +63,7 @@ class LoanConcurrencyIT extends AbstractIT {
         assertThat(bookMapper.selectById(bookId).getAvailableLicenses()).isZero();
     }
 
+    /** 竞态 C：同用户并发双击只产生一笔在借（user 行锁 + 唯一索引双守卫） */
     @Test
     void raceCSameUserDoubleClickCreatesExactlyOneLoan() throws Exception {
         Long aliceId = userIdByUsername("alice");
@@ -74,6 +76,7 @@ class LoanConcurrencyIT extends AbstractIT {
         assertThat(loanCount(aliceId, bookId)).isEqualTo(1);
     }
 
+    /** 竞态 D：并发第 6 笔借阅命中 5 本上限（计数在 user 锁内，不超额） */
     @Test
     void raceDSixthConcurrentBorrowHitsLimit() throws Exception {
         Long aliceId = userIdByUsername("alice");
@@ -92,6 +95,7 @@ class LoanConcurrencyIT extends AbstractIT {
         assertThat(results.stream().filter("LOAN_LIMIT_REACHED"::equals).count()).isEqualTo(1);
     }
 
+    /** 竞态 E：并发双归还恰好一个成功，名额不双放 */
     @Test
     void raceEConcurrentReturnOneSucceedsOneConflicts() throws Exception {
         Long aliceId = userIdByUsername("alice");
@@ -114,6 +118,7 @@ class LoanConcurrencyIT extends AbstractIT {
         assertThat(bookMapper.selectById(bookId).getAvailableLicenses()).isEqualTo(5);
     }
 
+    /** 兜底约束独立生效：绕过服务层直插重复在借被唯一索引拦截 */
     @Test
     void fallbackUniqueIndexBlocksDirectDuplicateInsert() {
         Long aliceId = userIdByUsername("alice");
